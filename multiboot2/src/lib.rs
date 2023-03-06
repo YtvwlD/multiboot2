@@ -34,6 +34,8 @@
 //! ## MSRV
 //! The MSRV is 1.52.1 stable.
 
+#![feature(ptr_metadata)]
+
 #[cfg(feature = "builder")]
 extern crate alloc;
 
@@ -42,7 +44,7 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
-use core::fmt;
+use core::{fmt, convert::TryInto};
 
 pub use boot_loader_name::BootLoaderNameTag;
 pub use command_line::CommandLineTag;
@@ -241,7 +243,10 @@ impl BootInformation {
     /// Search for the Command line tag.
     pub fn command_line_tag(&self) -> Option<&CommandLineTag> {
         self.get_tag(TagType::Cmdline)
-            .map(|tag| unsafe { &*(tag as *const Tag as *const CommandLineTag) })
+            .map(|tag| unsafe {
+                let (ptr, _) = (tag as *const Tag).to_raw_parts();
+                &*(core::ptr::from_raw_parts(ptr, tag.size.try_into().unwrap()) as *const CommandLineTag)
+            })
     }
 
     /// Search for the VBE framebuffer tag.
