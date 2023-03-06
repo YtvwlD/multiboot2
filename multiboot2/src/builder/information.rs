@@ -8,10 +8,17 @@ use alloc::boxed::Box;
 /// except for the END tag.
 #[derive(Debug)]
 pub struct Multiboot2InformationBuilder {
+    command_line_tag: Option<Box<CommandLineTag>>,
 }
 
 impl Multiboot2InformationBuilder {
     pub const fn new() -> Self {
-        Self {}
+        Self {
+            command_line_tag: None,
+        }
+    }
+
+    pub fn command_line_tag(&mut self, command_line_tag: Box<CommandLineTag>) {
+        self.command_line_tag = Some(command_line_tag);
     }
 }
