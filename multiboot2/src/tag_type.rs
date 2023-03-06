@@ -296,8 +296,9 @@ pub struct Tag {
 
 impl Tag {
     /// Casts the base tag to the specific tag type.
-    pub fn cast_tag<'a, T>(&self) -> &'a T {
-        unsafe { &*(self as *const Tag as *const T) }
+    pub fn cast_tag<'a, T: ?Sized>(&self) -> &'a T {
+        let (ptr, _) = (self as *const Tag).to_raw_parts();
+        unsafe { &*(core::ptr::from_raw_parts(ptr, self.size.try_into().unwrap()) as *const T) }
     }
 }
 

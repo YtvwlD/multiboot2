@@ -32,6 +32,8 @@
 //! ## MSRV
 //! The MSRV is 1.56.1 stable.
 
+#![feature(ptr_metadata)]
+
 #[cfg(feature = "builder")]
 extern crate alloc;
 
@@ -353,7 +355,7 @@ impl BootInformation {
     /// let str = unsafe { CStr::from_ptr(name).to_str().unwrap() };
     /// assert_eq!(str, "name");
     /// ```
-    pub fn get_tag<Tag, TagType: Into<TagTypeId>>(&self, typ: TagType) -> Option<&Tag> {
+    pub fn get_tag<Tag: ?Sized, TagType: Into<TagTypeId>>(&self, typ: TagType) -> Option<&Tag> {
         let typ = typ.into();
         self.tags()
             .find(|tag| tag.typ == typ)
@@ -485,7 +487,7 @@ impl Reader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{mem, slice};
+    use std::slice;
 
     #[test]
     fn no_tags() {
@@ -1554,7 +1556,7 @@ mod tests {
         let tag = bi.get_tag::<CustomTag, _>(CUSTOM_TAG_ID).unwrap();
 
         // strlen without null byte
-        let strlen = tag.size as usize - mem::size_of::<CommandLineTag>();
+        let strlen = tag.size as usize - command_line::METADATA_SIZE;
         let bytes = unsafe { slice::from_raw_parts((&tag.name) as *const u8, strlen) };
         let name = core::str::from_utf8(bytes).unwrap();
         assert_eq!(name, "name");
