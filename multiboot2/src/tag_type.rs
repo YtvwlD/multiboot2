@@ -5,9 +5,11 @@
 //! - [`TagType`]
 //! - [`Tag`]
 
+use core::convert::TryInto;
 use core::fmt::{Debug, Formatter};
 use core::hash::Hash;
 use core::marker::PhantomData;
+use core::mem::size_of;
 
 /// Serialized form of [`TagType`] that matches the binary representation
 /// (`u32`). The abstraction corresponds to the `typ`/`type` field of a
@@ -281,24 +283,25 @@ mod partial_eq_impls {
     }
 }
 
+pub(crate) const METADATA_SIZE: usize = size_of::<TagTypeId>() + size_of::<u32>();
+
 /// Common base structure for all tags that can be passed via the Multiboot2
 /// information structure (MBI) to a Multiboot2 payload/program/kernel.
 ///
 /// Do not confuse them with the Multiboot2 header tags. They are something
 /// different.
-#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Tag {
     pub typ: TagTypeId, // u32
     pub size: u32,
     // additional, tag specific fields
+    content: [u8],
 }
 
 impl Tag {
     /// Casts the base tag to the specific tag type.
     pub fn cast_tag<'a, T: ?Sized>(&self) -> &'a T {
-        let (ptr, _) = (self as *const Tag).to_raw_parts();
-        unsafe { &*(core::ptr::from_raw_parts(ptr, self.size.try_into().unwrap()) as *const T) }
+        unsafe { &*(self as *const Tag as *const T) }
     }
 }
 
@@ -316,6 +319,28 @@ impl Debug for Tag {
         debug.field("size", &(self.size));
 
         debug.finish()
+    }
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct EndTag {
+    pub typ: TagTypeId,
+    pub size: u32,
+}
+
+impl EndTag {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for EndTag {
+    fn default() -> Self {
+        Self {
+            typ: TagType::End.into(),
+            size: 8,
+        }
     }
 }
 
@@ -343,12 +368,18 @@ impl<'a> Iterator for TagIter<'a> {
                 // END-Tag
                 typ: TagTypeId(0),
                 size: 8,
+                content: _,
             } => None, // end tag
             tag => {
                 // go to next tag
-                let mut tag_addr = self.current as usize;
+                let (tag_addr, _) = self.current.to_raw_parts();
+                let mut tag_addr = tag_addr as usize;
                 tag_addr += ((tag.size + 7) & !7) as usize; //align at 8 byte
-                self.current = tag_addr as *const _;
+                let size: usize = unsafe { (tag_addr as *const u32).add(1).read() }
+                    .try_into()
+                    .unwrap();
+                self.current =
+                    core::ptr::from_raw_parts(tag_addr as *const (), size - METADATA_SIZE);
 
                 Some(tag)
             }

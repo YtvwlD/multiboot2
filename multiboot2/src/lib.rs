@@ -60,8 +60,8 @@ pub use memory_map::{
 };
 pub use module::{ModuleIter, ModuleTag};
 pub use rsdp::{RsdpV1Tag, RsdpV2Tag};
-use tag_type::TagIter;
-pub use tag_type::{Tag, TagType, TagTypeId};
+pub use tag_type::{EndTag, Tag, TagType, TagTypeId};
+use tag_type::{TagIter, METADATA_SIZE};
 pub use vbe_info::{
     VBECapabilities, VBEControlInfo, VBEDirectColorAttributes, VBEField, VBEInfoTag,
     VBEMemoryModel, VBEModeAttributes, VBEModeInfo, VBEWindowAttributes,
@@ -363,22 +363,24 @@ impl BootInformation {
     }
 
     fn tags(&self) -> TagIter {
-        TagIter::new(unsafe { self.inner.offset(1) } as *const _)
+        let next_ptr = unsafe { self.inner.offset(1) } as *const ();
+        let size: usize = unsafe { (next_ptr as *const u32).add(1).read() }
+            .try_into()
+            .unwrap();
+        TagIter::new(core::ptr::from_raw_parts(next_ptr, size - METADATA_SIZE))
     }
 }
 
 impl BootInformationInner {
     fn has_valid_end_tag(&self) -> bool {
-        let end_tag_prototype: Tag = Tag {
-            typ: TagType::End.into(),
-            size: 8,
-        };
+        // can't be const, sadly
+        let END_TAG = EndTag::new();
 
         let self_ptr = self as *const _;
-        let end_tag_addr = self_ptr as usize + (self.total_size - end_tag_prototype.size) as usize;
-        let end_tag = unsafe { &*(end_tag_addr as *const Tag) };
+        let end_tag_addr = self_ptr as usize + (self.total_size - END_TAG.size) as usize;
+        let end_tag = unsafe { &*(end_tag_addr as *const EndTag) };
 
-        end_tag.typ == end_tag_prototype.typ && end_tag.size == end_tag_prototype.size
+        end_tag.typ == END_TAG.typ && end_tag.size == END_TAG.size
     }
 }
 
@@ -451,7 +453,7 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
-    pub(crate) fn new<T>(ptr: *const T) -> Reader {
+    pub(crate) fn new<T: ?Sized>(ptr: *const T) -> Reader {
         Reader {
             ptr: ptr as *const u8,
             off: 0,
