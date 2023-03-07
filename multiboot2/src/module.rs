@@ -1,10 +1,23 @@
 use crate::tag_type::{Tag, TagIter, TagType};
+#[cfg(feature = "builder")]
+use crate::builder::boxed_dst_tag;
+
+use core::convert::TryInto;
 use core::fmt::{Debug, Formatter};
+use core::mem;
 use core::str::Utf8Error;
+
+#[cfg(feature = "builder")]
+use alloc::ffi::CString;
+
+#[cfg(feature = "builder")]
+use alloc::boxed::Box;
+
+const METADATA_SIZE: usize = mem::size_of::<TagType>() + 3 * mem::size_of::<u32>();
+
 
 /// This tag indicates to the kernel what boot module was loaded along with
 /// the kernel image, and where it can be found.
-#[derive(Clone, Copy)]
 #[repr(C, packed)] // only repr(C) would add unwanted padding near name_byte.
 pub struct ModuleTag {
     typ: TagType,
@@ -12,10 +25,26 @@ pub struct ModuleTag {
     mod_start: u32,
     mod_end: u32,
     /// Null-terminated UTF-8 string
-    cmdline_str: u8,
+    cmdline_str: [u8],
 }
 
 impl ModuleTag {
+    #[cfg(feature = "builder")]
+    pub fn new(start: u32, end: u32, cmdline: &str) -> Box<Self> {
+        // allocate a C string
+
+        let cstr = CString::new(cmdline)
+            .expect("failed to create CString");
+        let bytes = cstr.to_bytes_with_nul();
+        let size = (bytes.len() + METADATA_SIZE).try_into().unwrap();
+        let start_bytes = start.to_le_bytes();
+        let end_bytes = end.to_le_bytes();
+        let mut content_bytes = [start_bytes, end_bytes].concat();
+        content_bytes.extend_from_slice(cstr.as_bytes_with_nul());
+        let tag = boxed_dst_tag(TagType::Module, size, Some(content_bytes.as_slice()));
+        unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
+    }
+
     /// Returns the cmdline of the module.
     /// This is an null-terminated UTF-8 string. If this returns `Err` then perhaps the memory
     /// is invalid or the bootloader doesn't follow the spec.
@@ -24,10 +53,10 @@ impl ModuleTag {
     /// `module2 /foobar/some_boot_module --test cmdline-option` then this method
     /// will return `--test cmdline-option`.
     pub fn cmdline(&self) -> Result<&str, Utf8Error> {
-        use core::{mem, slice, str};
+        use core::{slice, str};
         // strlen without null byte
-        let strlen = self.size as usize - mem::size_of::<ModuleTag>();
-        let bytes = unsafe { slice::from_raw_parts((&self.cmdline_str) as *const u8, strlen) };
+        let strlen = self.size as usize - METADATA_SIZE - 1;
+        let bytes = unsafe { slice::from_raw_parts((&self.cmdline_str[0]) as *const u8, strlen) };
         str::from_utf8(bytes)
     }
 
@@ -76,7 +105,12 @@ impl<'a> Iterator for ModuleIter<'a> {
     fn next(&mut self) -> Option<&'a ModuleTag> {
         self.iter
             .find(|x| x.typ == TagType::Module)
-            .map(|tag| unsafe { &*(tag as *const Tag as *const ModuleTag) })
+            .map(|tag| unsafe {
+                let (ptr, _) = (tag as *const Tag).to_raw_parts();
+                &*(core::ptr::from_raw_parts(
+                    ptr, tag.size as usize - METADATA_SIZE,
+                ) as *const ModuleTag)
+             })
     }
 }
 
@@ -92,7 +126,7 @@ impl<'a> Debug for ModuleIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::TagType;
+    use crate::{TagType, module::METADATA_SIZE};
 
     const MSG: &str = "hello";
 
@@ -120,7 +154,13 @@ mod tests {
     #[test]
     fn test_parse_str() {
         let tag = get_bytes();
-        let tag = unsafe { tag.as_ptr().cast::<super::ModuleTag>().as_ref().unwrap() };
+        let tag = unsafe {
+            let (ptr, _) = tag.as_ptr().to_raw_parts();
+            &*(
+                core::ptr::from_raw_parts(ptr, tag.len() - METADATA_SIZE)
+                as *const super::ModuleTag
+            )
+        };
         assert_eq!({ tag.typ }, TagType::Module);
         assert_eq!(tag.cmdline().expect("must be valid UTF-8"), MSG);
     }

@@ -12,12 +12,12 @@ use core::mem::size_of;
 use alloc::alloc::alloc;
 use alloc::boxed::Box;
 
-use crate::{TagType, CommandLineTag};
+use crate::{TagType, Tag};
 
 /// Create a boxed tag with the given size. This includes type and size.
 pub(super) fn boxed_dst_tag(
     typ: TagType, size: u32, content: Option<&[u8]>
-) -> Box<CommandLineTag> {
+) -> Box<Tag> {
     // based on https://stackoverflow.com/a/64121094/2192464
     let (layout, size_offset) = Layout::new::<TagType>()
         .extend(Layout::new::<u32>()).unwrap();
@@ -46,4 +46,3 @@ pub(super) fn boxed_dst_tag(
         )
     }
 }
-
