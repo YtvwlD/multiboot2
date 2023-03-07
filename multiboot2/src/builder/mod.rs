@@ -11,14 +11,10 @@ use core::alloc::Layout;
 use core::convert::TryInto;
 use core::mem::size_of;
 
-use crate::{CommandLineTag, TagTypeId};
+use crate::{Tag, TagTypeId};
 
 /// Create a boxed tag with the given size. This includes type and size.
-pub(super) fn boxed_dst_tag(
-    typ: TagTypeId,
-    size: u32,
-    content: Option<&[u8]>,
-) -> Box<CommandLineTag> {
+pub(super) fn boxed_dst_tag(typ: TagTypeId, size: u32, content: Option<&[u8]>) -> Box<Tag> {
     // based on https://stackoverflow.com/a/64121094/2192464
     let (layout, size_offset) = Layout::new::<TagTypeId>()
         .extend(Layout::new::<u32>())

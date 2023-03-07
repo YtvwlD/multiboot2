@@ -36,11 +36,12 @@ impl CommandLineTag {
         let cstr = CString::new(command_line).expect("failed to create CString");
         let bytes = cstr.to_bytes_with_nul();
         let size = (bytes.len() + METADATA_SIZE).try_into().unwrap();
-        boxed_dst_tag(
+        let tag = boxed_dst_tag(
             TagType::Cmdline.into(),
             size,
             Some(cstr.as_bytes_with_nul()),
-        )
+        );
+        unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
     }
 
     /// Read the command line string that is being passed to the booting kernel.
