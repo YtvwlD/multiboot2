@@ -1,7 +1,10 @@
 use crate::tag_type::Tag;
 use crate::TagType;
 use core::fmt::{Debug, Formatter};
+use core::mem;
 use core::str::Utf8Error;
+
+const METADATA_SIZE: usize = mem::size_of::<TagType>() + mem::size_of::<u32>();
 
 /// This tag contains section header table from an ELF kernel.
 ///
@@ -15,7 +18,7 @@ pub struct ElfSectionsTag {
 pub unsafe fn elf_sections_tag(tag: &Tag, offset: usize) -> ElfSectionsTag {
     assert_eq!(TagType::ElfSections.val(), tag.typ);
     let es = ElfSectionsTag {
-        inner: (tag as *const Tag).offset(1) as *const ElfSectionsTagInner,
+        inner: ((tag as *const Tag) as *const u8).add(METADATA_SIZE) as *const ElfSectionsTagInner,
         offset,
     };
     assert!((es.get().entry_size * es.get().shndx) <= tag.size);
