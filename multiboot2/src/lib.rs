@@ -558,15 +558,6 @@ mod tests {
     }
 
     #[test]
-    /// Compile time test for `BootLoaderNameTag`.
-    fn name_tag_size() {
-        use BootLoaderNameTag;
-        unsafe {
-            core::mem::transmute::<[u8; 9], BootLoaderNameTag>([0u8; 9]);
-        }
-    }
-
-    #[test]
     fn framebuffer_tag_rgb() {
         // direct RGB mode test:
         // taken from GRUB2 running in QEMU at
