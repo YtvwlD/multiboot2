@@ -218,9 +218,13 @@ impl BootInformation {
     }
 
     /// Search for the ELF Sections tag.
-    pub fn elf_sections_tag(&self) -> Option<ElfSectionsTag> {
+    pub fn elf_sections_tag(&self) -> Option<&ElfSectionsTag> {
         self.get_tag(TagType::ElfSections)
-            .map(|tag| unsafe { elf_sections::elf_sections_tag(tag, self.offset) })
+            .map(|tag| unsafe {
+                let tag = &*(tag as *const Tag as  *const ElfSectionsTag);
+                assert!((tag.entry_size * tag.shndx) as u32 <= tag.size);
+                tag
+            })
     }
 
     /// Search for the Memory map tag.
@@ -381,7 +385,7 @@ impl fmt::Debug for BootInformation {
 
         let elf_sections_tag_entries_count = self
             .elf_sections_tag()
-            .map(|x| x.sections().count())
+            .map(|x| x.sections(self.offset).count())
             .unwrap_or(0);
 
         if elf_sections_tag_entries_count > ELF_SECTIONS_LIMIT {
@@ -391,7 +395,7 @@ impl fmt::Debug for BootInformation {
                 "elf_sections_tags",
                 &self
                     .elf_sections_tag()
-                    .map(|x| x.sections())
+                    .map(|x| x.sections(self.offset))
                     .unwrap_or_default(),
             );
         }
@@ -1154,7 +1158,7 @@ mod tests {
         assert_eq!(addr + bytes.len(), bi.end_address());
         assert_eq!(bytes.len(), bi.total_size());
         let es = bi.elf_sections_tag().unwrap();
-        let mut s = es.sections();
+        let mut s = es.sections(bi.offset);
         let s1 = s.next().unwrap();
         assert_eq!(".rodata", s1.name());
         assert_eq!(0xFFFF_8000_0010_0000, s1.start_address());
@@ -1336,7 +1340,7 @@ mod tests {
         assert_eq!(addr + bytes.0.len(), bi.end_address());
         assert_eq!(bytes.0.len(), bi.total_size() as usize);
         let es = bi.elf_sections_tag().unwrap();
-        let mut s = es.sections();
+        let mut s = es.sections(bi.offset);
         let s1 = s.next().unwrap();
         assert_eq!(".shstrtab", s1.name());
         assert_eq!(string_addr, s1.start_address());
@@ -1345,16 +1349,6 @@ mod tests {
         assert_eq!(ElfSectionFlags::empty(), s1.flags());
         assert_eq!(ElfSectionType::StringTable, s1.section_type());
         assert!(s.next().is_none());
-    }
-
-    #[test]
-    /// Compile time test for `ElfSectionsTag`.
-    fn elf_sections_tag_size() {
-        use super::ElfSectionsTag;
-        unsafe {
-            // `ElfSectionsTagInner` is 12 bytes + 4 in the offset.
-            core::mem::transmute::<[u8; 16], ElfSectionsTag>([0u8; 16]);
-        }
     }
 
     #[test]

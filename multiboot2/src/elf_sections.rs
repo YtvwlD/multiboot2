@@ -1,5 +1,10 @@
 use crate::tag_type::{Tag, TagType};
+#[cfg(feature = "builder")]
+use crate::builder::boxed_dst_tag;
+use core::convert::TryInto;
 use core::{fmt::{Debug, Formatter}, mem};
+#[cfg(feature = "builder")]
+use alloc::boxed::Box;
 
 const METADATA_SIZE: usize = mem::size_of::<TagType>() + mem::size_of::<u32>();
 
@@ -7,30 +12,31 @@ const METADATA_SIZE: usize = mem::size_of::<TagType>() + mem::size_of::<u32>();
 ///
 /// The sections iterator is provided via the `sections` method.
 #[derive(Debug)]
+#[repr(C, packed)]
 pub struct ElfSectionsTag {
-    inner: *const ElfSectionsTagInner,
-    offset: usize,
-}
-
-pub unsafe fn elf_sections_tag(tag: &Tag, offset: usize) -> ElfSectionsTag {
-    assert_eq!(9, tag.typ);
-    let es = ElfSectionsTag {
-        inner: ((tag as *const Tag) as *const u8).add(METADATA_SIZE) as *const ElfSectionsTagInner,
-        offset,
-    };
-    assert!((es.get().entry_size * es.get().shndx) <= tag.size);
-    es
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(C, packed)] // only repr(C) would add unwanted padding at the end
-struct ElfSectionsTagInner {
+    typ: TagType,
+    pub(crate) size: u32,
     number_of_sections: u32,
-    entry_size: u32,
-    shndx: u32, // string table
+    pub(crate) entry_size: u32,
+    pub(crate) shndx: u32, // string table
+    sections: [u8],
 }
 
 impl ElfSectionsTag {
+    #[cfg(feature = "builder")]
+    pub fn new(number_of_sections: u32, entry_size: u32, shndx: u32, sections: &[u8]) -> Box<Self> {
+        let size = (sections.len() + METADATA_SIZE).try_into().unwrap();
+        let mut bytes = [
+            number_of_sections.to_le_bytes(), entry_size.to_le_bytes(),
+            shndx.to_le_bytes(),
+        ].concat();
+        bytes.extend_from_slice(sections);
+        let tag = boxed_dst_tag(
+            TagType::ElfSections, size, Some(bytes.as_slice())
+        );
+        unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
+    }
+
     /// Get an iterator of loaded ELF sections.
     ///
     /// # Examples
@@ -44,25 +50,21 @@ impl ElfSectionsTag {
     ///     }
     /// }
     /// ```
-    pub fn sections(&self) -> ElfSectionIter {
-        let string_section_offset = (self.get().shndx * self.get().entry_size) as isize;
+    pub fn sections(&self, offset: usize) -> ElfSectionIter {
+        let string_section_offset = (self.shndx * self.entry_size) as isize;
         let string_section_ptr =
             unsafe { self.first_section().offset(string_section_offset) as *const _ };
         ElfSectionIter {
             current_section: self.first_section(),
-            remaining_sections: self.get().number_of_sections,
-            entry_size: self.get().entry_size,
+            remaining_sections: self.number_of_sections.into(),
+            entry_size: self.entry_size.into(),
             string_section: string_section_ptr,
-            offset: self.offset,
+            offset,
         }
     }
 
     fn first_section(&self) -> *const u8 {
-        (unsafe { self.inner.offset(1) }) as *const _
-    }
-
-    fn get(&self) -> &ElfSectionsTagInner {
-        unsafe { &*self.inner }
+        &(self.sections[0]) as *const _
     }
 }
 
