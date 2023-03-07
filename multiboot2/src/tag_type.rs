@@ -1,8 +1,10 @@
 //! Module for [`TagType`].
 
+use core::convert::TryInto;
 use core::fmt::{Debug, Formatter};
 use core::hash::Hash;
 use core::marker::PhantomData;
+use core::mem::size_of;
 
 /// Possible types of a Tag in the Multiboot2 Information Structure (MBI), therefore the value
 /// of the the `typ` property. The names and values are taken from the example C code
@@ -103,15 +105,17 @@ impl PartialEq<TagType> for u32 {
     }
 }
 
+pub(crate) const METADATA_SIZE: usize = size_of::<TagType>() + size_of::<u32>();
+
 /// All tags that could passed via the Multiboot2 information structure to a payload/program/kernel.
 /// Better not confuse this with the Multiboot2 header tags. They are something different.
-#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Tag {
     // u32 value
     pub typ: TagType,
     pub size: u32,
     // tag specific fields
+    content: [u8]
 }
 
 impl Debug for Tag {
@@ -121,6 +125,21 @@ impl Debug for Tag {
             .field("typ (numeric)", &(self.typ as u32))
             .field("size", &(self.size))
             .finish()
+    }
+}
+
+#[repr(C)]
+pub struct EndTag {
+    pub typ: TagType,
+    pub size: u32
+}
+
+impl EndTag {
+    pub const fn new() -> Self {
+        Self {
+            typ: TagType::End,
+            size: 8,
+        }
     }
 }
 
@@ -147,12 +166,19 @@ impl<'a> Iterator for TagIter<'a> {
             &Tag {
                 typ: TagType::End,
                 size: 8,
+                content: _,
             } => None, // end tag
             tag => {
                 // go to next tag
-                let mut tag_addr = self.current as usize;
+                let (tag_addr, _) = self.current.to_raw_parts();
+                let mut tag_addr = tag_addr as usize;
                 tag_addr += ((tag.size + 7) & !7) as usize; //align at 8 byte
-                self.current = tag_addr as *const _;
+                let size: usize = unsafe {
+                    (tag_addr as *const u32).add(1).read()
+                }.try_into().unwrap();
+                self.current = core::ptr::from_raw_parts(
+                    tag_addr as *const (), size - METADATA_SIZE,
+                );
 
                 Some(tag)
             }

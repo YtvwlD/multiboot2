@@ -61,7 +61,7 @@ pub use memory_map::{
 pub use module::{ModuleIter, ModuleTag};
 pub use rsdp::{RsdpV1Tag, RsdpV2Tag};
 pub use tag_type::TagType;
-use tag_type::{Tag, TagIter};
+use tag_type::{EndTag, METADATA_SIZE, Tag, TagIter};
 pub use vbe_info::{
     VBECapabilities, VBEControlInfo, VBEDirectColorAttributes, VBEField, VBEInfoTag,
     VBEMemoryModel, VBEModeAttributes, VBEModeInfo, VBEWindowAttributes,
@@ -243,10 +243,7 @@ impl BootInformation {
     /// Search for the Command line tag.
     pub fn command_line_tag(&self) -> Option<&CommandLineTag> {
         self.get_tag(TagType::Cmdline)
-            .map(|tag| unsafe {
-                let (ptr, _) = (tag as *const Tag).to_raw_parts();
-                &*(core::ptr::from_raw_parts(ptr, tag.size.try_into().unwrap()) as *const CommandLineTag)
-            })
+            .map(|tag| unsafe { &*(tag as *const Tag as *const CommandLineTag) })
     }
 
     /// Search for the VBE framebuffer tag.
@@ -324,20 +321,23 @@ impl BootInformation {
     }
 
     fn tags(&self) -> TagIter {
-        TagIter::new(unsafe { self.inner.offset(1) } as *const _)
+        let next_ptr = unsafe { self.inner.offset(1) } as *const ();
+        let size: usize = unsafe {
+            (next_ptr as *const u32).add(1).read()
+        }.try_into().unwrap();
+        TagIter::new(
+            core::ptr::from_raw_parts(next_ptr, size - METADATA_SIZE)
+        )
     }
 }
 
 impl BootInformationInner {
     fn has_valid_end_tag(&self) -> bool {
-        const END_TAG: Tag = Tag {
-            typ: TagType::End,
-            size: 8,
-        };
+        const END_TAG: EndTag = EndTag::new();
 
         let self_ptr = self as *const _;
         let end_tag_addr = self_ptr as usize + (self.total_size - END_TAG.size) as usize;
-        let end_tag = unsafe { &*(end_tag_addr as *const Tag) };
+        let end_tag = unsafe { &*(end_tag_addr as *const EndTag) };
 
         end_tag.typ == END_TAG.typ && end_tag.size == END_TAG.size
     }
@@ -412,7 +412,7 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
-    pub(crate) fn new<T>(ptr: *const T) -> Reader {
+    pub(crate) fn new<T: ?Sized>(ptr: *const T) -> Reader {
         Reader {
             ptr: ptr as *const u8,
             off: 0,
