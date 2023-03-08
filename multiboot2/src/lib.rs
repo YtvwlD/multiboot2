@@ -255,11 +255,10 @@ impl BootInformation {
         self.get_tag::<CommandLineTag, _>(TagType::Cmdline)
     }
 
-    /// Search for the VBE framebuffer tag. The result is `Some(Err(e))`, if the
-    /// framebuffer type is unknown, while the framebuffer tag is present.
-    pub fn framebuffer_tag(&self) -> Option<Result<FramebufferTag, UnknownFramebufferType>> {
+    /// Search for the VBE framebuffer tag.
+    pub fn framebuffer_tag(&self) -> Option<&FramebufferTag> {
         self.get_tag::<Tag, _>(TagType::Framebuffer)
-            .map(framebuffer::framebuffer_tag)
+            .map(|tag| unsafe { &*(tag as *const Tag as *const FramebufferTag) })
     }
 
     /// Search for the EFI 32-bit SDT tag.
@@ -630,31 +629,28 @@ mod tests {
         assert_eq!(addr, bi.start_address());
         assert_eq!(addr + bytes.0.len(), bi.end_address());
         assert_eq!(bytes.0.len(), bi.total_size());
-        use framebuffer::{FramebufferField, FramebufferTag, FramebufferType};
-        assert_eq!(
-            bi.framebuffer_tag(),
-            Some(Ok(FramebufferTag {
-                address: 4244635648,
-                pitch: 5120,
-                width: 1280,
-                height: 720,
-                bpp: 32,
-                buffer_type: FramebufferType::RGB {
-                    red: FramebufferField {
-                        position: 16,
-                        size: 8
-                    },
-                    green: FramebufferField {
-                        position: 8,
-                        size: 8
-                    },
-                    blue: FramebufferField {
-                        position: 0,
-                        size: 8
-                    }
-                }
-            }))
-        )
+        use framebuffer::{FramebufferField, FramebufferType};
+        assert!(bi.framebuffer_tag().is_some());
+        let fbi = bi.framebuffer_tag().unwrap();
+        assert_eq!(fbi.address(), 4244635648);
+        assert_eq!(fbi.pitch(), 5120);
+        assert_eq!(fbi.width(), 1280);
+        assert_eq!(fbi.height(), 720);
+        assert_eq!(fbi.bpp(), 32);
+        assert_eq!(fbi.buffer_type(), FramebufferType::RGB {
+            red: FramebufferField {
+                position: 16,
+                size: 8
+            },
+            green: FramebufferField {
+                position: 8,
+                size: 8
+            },
+            blue: FramebufferField {
+                position: 0,
+                size: 8
+            }
+        });
     }
 
     #[test]
@@ -688,16 +684,16 @@ mod tests {
         assert_eq!(bytes.0.len(), bi.total_size());
         use framebuffer::{FramebufferColor, FramebufferType};
         assert!(bi.framebuffer_tag().is_some());
-        let fbi = bi
-            .framebuffer_tag()
+        let fbi = bi.framebuffer_tag()
+            .unwrap()
             .expect("Framebuffer info should be available")
             .expect("Framebuffer info type should be valid");
-        assert_eq!(fbi.address, 4244635648);
-        assert_eq!(fbi.pitch, 5120);
-        assert_eq!(fbi.width, 1280);
-        assert_eq!(fbi.height, 720);
-        assert_eq!(fbi.bpp, 32);
-        match fbi.buffer_type {
+        assert_eq!(fbi.address(), 4244635648);
+        assert_eq!(fbi.pitch(), 5120);
+        assert_eq!(fbi.width(), 1280);
+        assert_eq!(fbi.height(), 720);
+        assert_eq!(fbi.bpp(), 32);
+        match fbi.buffer_type() {
             FramebufferType::Indexed { palette } => assert_eq!(
                 palette,
                 [
@@ -724,16 +720,6 @@ mod tests {
                 ]
             ),
             _ => panic!("Expected indexed framebuffer type."),
-        }
-    }
-
-    #[test]
-    /// Compile time test for `FramebufferTag`.
-    fn framebuffer_tag_size() {
-        use crate::FramebufferTag;
-        unsafe {
-            // 24 for the start + 24 for `FramebufferType`.
-            core::mem::transmute::<[u8; 48], FramebufferTag>([0u8; 48]);
         }
     }
 
@@ -1307,12 +1293,12 @@ mod tests {
             .framebuffer_tag()
             .expect("Framebuffer info should be available")
             .expect("Framebuffer info type should be valid");
-        assert_eq!(fbi.address, 753664);
-        assert_eq!(fbi.pitch, 160);
-        assert_eq!(fbi.width, 80);
-        assert_eq!(fbi.height, 25);
-        assert_eq!(fbi.bpp, 16);
-        assert_eq!(fbi.buffer_type, FramebufferType::Text);
+        assert_eq!(fbi.address(), 753664);
+        assert_eq!(fbi.pitch(), 160);
+        assert_eq!(fbi.width(), 80);
+        assert_eq!(fbi.height(), 25);
+        assert_eq!(fbi.bpp(), 16);
+        assert_eq!(fbi.buffer_type(), FramebufferType::Text);
     }
 
     #[test]
