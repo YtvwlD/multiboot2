@@ -1,7 +1,15 @@
 use crate::TagType;
+#[cfg(feature = "builder")]
+use crate::builder::boxed_dst_tag;
+#[cfg(feature = "builder")]
+use crate::builder::traits::StructAsBytes;
+
 use core::convert::TryInto;
 use core::marker::PhantomData;
 use core::mem;
+
+#[cfg(feature = "builder")]
+use alloc::boxed::Box;
 
 /// This tag provides an initial host memory map.
 ///
@@ -20,10 +28,27 @@ pub struct MemoryMapTag {
     size: u32,
     entry_size: u32,
     entry_version: u32,
-    first_area: MemoryArea,
+    areas: [MemoryArea],
 }
 
 impl MemoryMapTag {
+    #[cfg(feature = "builder")]
+    pub fn new(areas: &[MemoryArea]) -> Box<Self> {
+        let entry_size: u32 = mem::size_of::<MemoryArea>().try_into().unwrap();
+        let entry_version: u32 = 0;
+        let mut bytes = [
+            entry_size.to_le_bytes(), entry_version.to_le_bytes()
+        ].concat();
+        for area in areas {
+            bytes.extend(area.struct_as_bytes());
+        }
+        let tag = boxed_dst_tag(
+            TagType::Mmap, bytes.len().try_into().unwrap(),
+            Some(bytes.as_slice()),
+        );
+        unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
+    }
+
     /// Return an iterator over all AVAILABLE marked memory areas.
     pub fn memory_areas(&self) -> impl Iterator<Item = &MemoryArea> {
         self.all_memory_areas()
@@ -33,10 +58,10 @@ impl MemoryMapTag {
     /// Return an iterator over all marked memory areas.
     pub fn all_memory_areas(&self) -> impl Iterator<Item = &MemoryArea> {
         let self_ptr = self as *const MemoryMapTag;
-        let start_area = (&self.first_area) as *const MemoryArea;
+        let start_area = (&self.areas[0]) as *const MemoryArea;
         MemoryAreaIter {
             current_area: start_area as u64,
-            last_area: (self_ptr as u64 + (self.size - self.entry_size) as u64),
+            last_area: (self_ptr as *const() as u64 + (self.size - self.entry_size) as u64),
             entry_size: self.entry_size,
             phantom: PhantomData,
         }
@@ -44,7 +69,7 @@ impl MemoryMapTag {
 }
 
 /// A memory area entry descriptor.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct MemoryArea {
     base_addr: u64,
@@ -54,6 +79,11 @@ pub struct MemoryArea {
 }
 
 impl MemoryArea {
+    /// Create a new MemoryArea.
+    pub fn new(base_addr: u64, length: u64, typ: MemoryAreaType) -> Self {
+        Self { base_addr, length, typ, _reserved: 0 }
+    }
+
     /// The start address of the memory region.
     pub fn start_address(&self) -> u64 {
         self.base_addr
@@ -74,6 +104,8 @@ impl MemoryArea {
         self.typ
     }
 }
+
+impl StructAsBytes for MemoryArea {}
 
 /// An enum of possible reported region types.
 /// Inside the Multiboot2 spec this is kind of hidden
