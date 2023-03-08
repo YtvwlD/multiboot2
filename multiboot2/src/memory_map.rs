@@ -1,5 +1,7 @@
 use crate::TagType;
+use core::convert::TryInto;
 use core::marker::PhantomData;
+use core::mem;
 
 /// This tag provides an initial host memory map.
 ///
@@ -116,6 +118,50 @@ impl<'a> Iterator for MemoryAreaIter<'a> {
             self.current_area += self.entry_size as u64;
             Some(area)
         }
+    }
+}
+
+/// Basic memory info
+///
+/// This tag includes "basic memory information".
+/// This means (legacy) lower and upper memory:
+/// In Real Mode (modeled after the 8086),
+/// only the first 1MB of memory is accessible.
+/// Typically, the region between 640KB and 1MB is not freely usable,
+/// because it is used for memory-mapped IO, for instance.
+/// The term “lower memory” refers to those first 640KB of memory that are
+/// freely usable for an application in Real Mode.
+/// “Upper memory” then refers to the next freely usable chunk of memory,
+/// starting at 1MB up to about 10MB, in practice.
+/// This is the memory an application running on a 286
+/// (which had a 24-bit address bus) could use, historically.
+/// Nowadays, much bigger chunks of continuous memory are available at higher
+/// addresses, but the Multiboot standard still references those two terms.
+#[derive(Debug)]
+#[repr(C, packed)]
+pub struct BasicMemoryInfoTag {
+    typ: TagType,
+    size: u32,
+    memory_lower: u32,
+    memory_upper: u32,
+}
+
+impl BasicMemoryInfoTag {
+    pub fn new(memory_lower: u32, memory_upper: u32) -> Self {
+        Self {
+            typ: TagType::BasicMeminfo,
+            size: mem::size_of::<BasicMemoryInfoTag>().try_into().unwrap(),
+            memory_lower,
+            memory_upper,
+        }
+    }
+
+    pub fn memory_lower(&self) -> u32 {
+        self.memory_lower
+    }
+
+    pub fn memory_upper(&self) -> u32 {
+        self.memory_upper
     }
 }
 
