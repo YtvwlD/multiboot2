@@ -145,6 +145,13 @@ impl FramebufferTag {
     }
 }
 
+#[cfg(feature = "builder")]
+impl StructAsBytes for FramebufferTag {
+    fn byte_size(&self) -> usize {
+        self.size.try_into().unwrap()
+    }
+}
+
 /// Helper struct for [`FramebufferType`].
 #[derive(Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -222,7 +229,12 @@ pub struct FramebufferField {
     pub size: u8,
 }
 
-impl StructAsBytes for FramebufferField {}
+#[cfg(feature = "builder")]
+impl StructAsBytes for FramebufferField {
+    fn byte_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
+}
 
 /// A framebuffer color descriptor in the palette.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -246,4 +258,9 @@ pub struct UnknownFramebufferType(u8);
 #[cfg(feature = "unstable")]
 impl core::error::Error for UnknownFramebufferType {}
 
-impl StructAsBytes for FramebufferColor {}
+#[cfg(feature = "builder")]
+impl StructAsBytes for FramebufferColor {
+    fn byte_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
+}

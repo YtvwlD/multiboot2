@@ -4,6 +4,8 @@
 //! - [`TagTypeId`]
 //! - [`TagType`]
 //! - [`Tag`]
+#[cfg(feature = "builder")]
+use crate::builder::traits::StructAsBytes;
 
 use core::convert::TryInto;
 use core::fmt::{Debug, Formatter};
@@ -341,6 +343,13 @@ impl Default for EndTag {
             typ: TagType::End.into(),
             size: 8,
         }
+    }
+}
+
+#[cfg(feature = "builder")]
+impl StructAsBytes for EndTag {
+    fn byte_size(&self) -> usize {
+        core::mem::size_of::<Self>()
     }
 }
 
