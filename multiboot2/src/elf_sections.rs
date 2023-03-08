@@ -1,6 +1,9 @@
 use crate::tag_type::{Tag, TagType};
 #[cfg(feature = "builder")]
 use crate::builder::boxed_dst_tag;
+#[cfg(feature = "builder")]
+use crate::builder::traits::StructAsBytes;
+
 use core::convert::TryInto;
 use core::{fmt::{Debug, Formatter}, mem};
 #[cfg(feature = "builder")]
@@ -65,6 +68,13 @@ impl ElfSectionsTag {
 
     fn first_section(&self) -> *const u8 {
         &(self.sections[0]) as *const _
+    }
+}
+
+#[cfg(feature = "builder")]
+impl StructAsBytes for ElfSectionsTag {
+    fn byte_size(&self) -> usize {
+        self.size.try_into().unwrap()
     }
 }
 

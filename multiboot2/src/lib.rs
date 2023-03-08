@@ -47,6 +47,8 @@ extern crate std;
 use core::{fmt, convert::TryInto};
 
 pub use boot_loader_name::BootLoaderNameTag;
+#[cfg(feature = "builder")]
+use builder::traits::StructAsBytes;
 pub use command_line::CommandLineTag;
 pub use efi::{EFIImageHandle32, EFIImageHandle64, EFISdt32, EFISdt64};
 pub use elf_sections::{
@@ -193,6 +195,19 @@ pub struct BootInformation {
 struct BootInformationInner {
     total_size: u32,
     _reserved: u32,
+}
+
+impl BootInformationInner {
+    fn new(total_size: u32) -> Self {
+        Self { total_size, _reserved: 0 }
+    }
+}
+
+#[cfg(feature = "builder")]
+impl StructAsBytes for BootInformationInner {
+    fn byte_size(&self) -> usize {
+        core::mem::size_of::<Self>()
+    }
 }
 
 impl BootInformation {

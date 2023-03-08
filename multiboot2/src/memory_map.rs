@@ -68,6 +68,13 @@ impl MemoryMapTag {
     }
 }
 
+#[cfg(feature = "builder")]
+impl StructAsBytes for MemoryMapTag {
+    fn byte_size(&self) -> usize {
+        self.size.try_into().unwrap()
+    }
+}
+
 /// A memory area entry descriptor.
 #[derive(Debug, Clone)]
 #[repr(C)]
@@ -105,7 +112,12 @@ impl MemoryArea {
     }
 }
 
-impl StructAsBytes for MemoryArea {}
+#[cfg(feature = "builder")]
+impl StructAsBytes for MemoryArea {
+    fn byte_size(&self) -> usize {
+        mem::size_of::<Self>()
+    }
+}
 
 /// An enum of possible reported region types.
 /// Inside the Multiboot2 spec this is kind of hidden
@@ -194,6 +206,13 @@ impl BasicMemoryInfoTag {
 
     pub fn memory_upper(&self) -> u32 {
         self.memory_upper
+    }
+}
+
+#[cfg(feature = "builder")]
+impl StructAsBytes for BasicMemoryInfoTag {
+    fn byte_size(&self) -> usize {
+        mem::size_of::<Self>()
     }
 }
 

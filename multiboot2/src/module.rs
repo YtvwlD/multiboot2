@@ -1,6 +1,8 @@
 use crate::tag_type::{Tag, TagIter, TagType};
 #[cfg(feature = "builder")]
 use crate::builder::boxed_dst_tag;
+#[cfg(feature = "builder")]
+use crate::builder::traits::StructAsBytes;
 
 use core::convert::TryInto;
 use core::fmt::{Debug, Formatter};
@@ -73,6 +75,13 @@ impl ModuleTag {
     /// The size of the module/the BLOB in memory.
     pub fn module_size(&self) -> u32 {
         self.mod_end - self.mod_start
+    }
+}
+
+#[cfg(feature = "builder")]
+impl StructAsBytes for ModuleTag {
+    fn byte_size(&self) -> usize {
+        self.size.try_into().unwrap()
     }
 }
 
