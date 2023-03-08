@@ -2,6 +2,8 @@ use crate::TagTypeId;
 use crate::TagType;
 #[cfg(feature = "builder")]
 use crate::builder::boxed_dst_tag;
+#[cfg(feature = "builder")]
+use crate::builder::traits::StructAsBytes;
 
 use core::convert::TryInto;
 use core::mem;
@@ -61,6 +63,13 @@ impl BootLoaderNameTag {
         let strlen = self.size as usize - METADATA_SIZE - 1;
         let bytes = unsafe { slice::from_raw_parts((&self.string[0]) as *const u8, strlen) };
         str::from_utf8(bytes)
+    }
+}
+
+#[cfg(feature = "builder")]
+impl StructAsBytes for BootLoaderNameTag {
+    fn byte_size(&self) -> usize {
+        self.size.try_into().unwrap()
     }
 }
 
