@@ -62,10 +62,7 @@ impl FramebufferTag {
         bytes.extend(bpp.to_le_bytes());
         bytes.extend(buffer_type.to_bytes());
 
-        let size = (bytes.len() + METADATA_SIZE).try_into().unwrap();
-        let tag = boxed_dst_tag(
-            TagType::Framebuffer, size, Some(&bytes)
-        );
+        let tag = boxed_dst_tag(TagType::Framebuffer, &bytes);
         unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
     }
 
