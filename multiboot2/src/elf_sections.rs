@@ -13,7 +13,6 @@ use core::str::Utf8Error;
 /// This tag contains section header table from an ELF kernel.
 ///
 /// The sections iterator is provided via the `sections` method.
-#[derive(Debug)]
 #[repr(C, packed)]
 pub struct ElfSectionsTag {
     typ: TagTypeId,
@@ -74,6 +73,19 @@ impl ElfSectionsTag {
 impl StructAsBytes for ElfSectionsTag {
     fn byte_size(&self) -> usize {
         self.size.try_into().unwrap()
+    }
+}
+
+impl Debug for ElfSectionsTag {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ElfSectionsTag")
+            .field("typ", &{ self.typ })
+            .field("size", &{ self.size })
+            .field("number_of_sections", &{ self.number_of_sections })
+            .field("entry_size", &{ self.entry_size })
+            .field("shndx", &{ self.shndx })
+            .field("sections", &self.sections(0))
+            .finish()
     }
 }
 

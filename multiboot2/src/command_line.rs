@@ -7,6 +7,7 @@ use crate::builder::traits::StructAsBytes;
 use crate::tag_type::{TagType, TagTypeId};
 
 use core::convert::TryInto;
+use core::fmt::Debug;
 use core::mem;
 use core::slice;
 use core::str;
@@ -23,7 +24,6 @@ pub(crate) const METADATA_SIZE: usize = mem::size_of::<TagTypeId>() + mem::size_
 ///
 /// The string is a normal C-style UTF-8 zero-terminated string that can be
 /// obtained via the `command_line` method.
-#[derive(Debug)]
 #[repr(C, packed)] // only repr(C) would add unwanted padding before first_section
 pub struct CommandLineTag {
     typ: TagTypeId,
@@ -66,6 +66,16 @@ impl CommandLineTag {
 impl StructAsBytes for CommandLineTag {
     fn byte_size(&self) -> usize {
         self.size.try_into().unwrap()
+    }
+}
+
+impl Debug for CommandLineTag {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("CommandLineTag")
+            .field("typ", &{ self.typ })
+            .field("size", &{ self.size })
+            .field("command_line", &self.command_line())
+            .finish()
     }
 }
 

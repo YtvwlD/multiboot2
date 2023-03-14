@@ -5,6 +5,7 @@ use crate::builder::traits::StructAsBytes;
 use crate::tag_type::{TagType, TagTypeId};
 
 use core::convert::TryInto;
+use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::mem;
 
@@ -183,7 +184,6 @@ impl<'a> Iterator for MemoryAreaIter<'a> {
 /// (which had a 24-bit address bus) could use, historically.
 /// Nowadays, much bigger chunks of continuous memory are available at higher
 /// addresses, but the Multiboot standard still references those two terms.
-#[derive(Debug)]
 #[repr(C, packed)]
 pub struct BasicMemoryInfoTag {
     typ: TagTypeId,
@@ -215,6 +215,17 @@ impl BasicMemoryInfoTag {
 impl StructAsBytes for BasicMemoryInfoTag {
     fn byte_size(&self) -> usize {
         mem::size_of::<Self>()
+    }
+}
+
+impl Debug for BasicMemoryInfoTag {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("BasicMemoryInfoTag")
+            .field("typ", &{ self.typ })
+            .field("size", &{ self.size })
+            .field("memory_lower", &{ self.memory_lower })
+            .field("memory_upper", &{ self.memory_upper })
+            .finish()
     }
 }
 
