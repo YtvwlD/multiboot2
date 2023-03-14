@@ -38,9 +38,7 @@ impl CommandLineTag {
         // allocate a C string
         let cstr = CString::new(command_line)
             .expect("failed to create CString");
-        let bytes = cstr.to_bytes_with_nul();
-        let size = (bytes.len() + METADATA_SIZE).try_into().unwrap();
-        let tag = boxed_dst_tag(TagType::Cmdline, size, Some(cstr.as_bytes_with_nul()));
+        let tag = boxed_dst_tag(TagType::Cmdline, cstr.as_bytes_with_nul());
         unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
     }
 

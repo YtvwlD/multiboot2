@@ -43,10 +43,7 @@ impl MemoryMapTag {
         for area in areas {
             bytes.extend(area.struct_as_bytes());
         }
-        let tag = boxed_dst_tag(
-            TagType::Mmap, bytes.len().try_into().unwrap(),
-            Some(bytes.as_slice()),
-        );
+        let tag = boxed_dst_tag(TagType::Mmap, bytes.as_slice());
         unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
     }
 

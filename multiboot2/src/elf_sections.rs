@@ -1,6 +1,5 @@
 use crate::TagType;
 use core::fmt::{Debug, Formatter};
-use core::mem;
 use core::str::Utf8Error;
 #[cfg(feature = "builder")]
 use crate::builder::boxed_dst_tag;
@@ -10,8 +9,6 @@ use crate::builder::traits::StructAsBytes;
 use core::convert::TryInto;
 #[cfg(feature = "builder")]
 use alloc::boxed::Box;
-
-const METADATA_SIZE: usize = mem::size_of::<TagType>() + mem::size_of::<u32>();
 
 /// This tag contains section header table from an ELF kernel.
 ///
@@ -30,15 +27,12 @@ pub struct ElfSectionsTag {
 impl ElfSectionsTag {
     #[cfg(feature = "builder")]
     pub fn new(number_of_sections: u32, entry_size: u32, shndx: u32, sections: &[u8]) -> Box<Self> {
-        let size = (sections.len() + METADATA_SIZE).try_into().unwrap();
         let mut bytes = [
             number_of_sections.to_le_bytes(), entry_size.to_le_bytes(),
             shndx.to_le_bytes(),
         ].concat();
         bytes.extend_from_slice(sections);
-        let tag = boxed_dst_tag(
-            TagType::ElfSections, size, Some(bytes.as_slice())
-        );
+        let tag = boxed_dst_tag(TagType::ElfSections, bytes.as_slice());
         unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
     }
 

@@ -37,10 +37,8 @@ impl BootLoaderNameTag {
         // allocate a C string
         let cstr = CString::new(name)
             .expect("failed to create CString");
-        let bytes = cstr.to_bytes_with_nul();
-        let size = (bytes.len() + METADATA_SIZE).try_into().unwrap();
         let tag = boxed_dst_tag(
-            TagType::BootLoaderName, size, Some(cstr.as_bytes_with_nul())
+            TagType::BootLoaderName, cstr.as_bytes_with_nul(),
         );
         unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
     }
