@@ -34,8 +34,6 @@
 //! ## MSRV
 //! The MSRV is 1.52.1 stable.
 
-#![feature(ptr_metadata)]
-
 #[cfg(feature = "builder")]
 extern crate alloc;
 
@@ -44,7 +42,7 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 
-use core::{fmt, convert::TryInto};
+use core::{fmt, convert::TryInto, ptr::slice_from_raw_parts};
 
 pub use boot_loader_name::BootLoaderNameTag;
 #[cfg(feature = "builder")]
@@ -351,7 +349,7 @@ impl BootInformation {
             (next_ptr as *const u32).add(1).read()
         }.try_into().unwrap();
         TagIter::new(
-            core::ptr::from_raw_parts(next_ptr, size - METADATA_SIZE)
+            slice_from_raw_parts(next_ptr, size - METADATA_SIZE) as *mut Tag
         )
     }
 }

@@ -9,6 +9,7 @@ pub use information::Multiboot2InformationBuilder;
 use core::alloc::Layout;
 use core::convert::TryInto;
 use core::mem::size_of;
+use core::ptr::slice_from_raw_parts_mut;
 use alloc::alloc::alloc;
 use alloc::boxed::Box;
 
@@ -36,9 +37,9 @@ pub(super) fn boxed_dst_tag(typ: TagType, content: &[u8]) -> Box<Tag> {
             content_ptr.add(idx).write(*val);
         }
         Box::from_raw(
-            core::ptr::from_raw_parts_mut(
-                ptr as *mut (), content.len()
-            )
+            slice_from_raw_parts_mut(
+                ptr as *mut usize, content.len()
+            ) as *mut Tag
         )
     }
 }
