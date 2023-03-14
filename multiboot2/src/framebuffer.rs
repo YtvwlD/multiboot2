@@ -5,6 +5,7 @@ use crate::builder::boxed_dst_tag;
 use crate::builder::traits::StructAsBytes;
 
 use core::convert::TryInto;
+use core::fmt::Debug;
 use core::mem;
 use core::slice;
 
@@ -14,7 +15,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 
 /// The VBE Framebuffer information Tag.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Eq)]
 #[repr(C, packed)]
 pub struct FramebufferTag {
     typ: TagType,
@@ -142,6 +143,37 @@ impl FramebufferTag {
 impl StructAsBytes for FramebufferTag {
     fn byte_size(&self) -> usize {
         self.size.try_into().unwrap()
+    }
+}
+
+impl Debug for FramebufferTag {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("FramebufferTag")
+            .field("typ", &{self.typ})
+            .field("size", &{self.size})
+            .field("buffer_type", &self.buffer_type())
+            .field("address", &{self.address})
+            .field("pitch", &{self.pitch})
+            .field("width", &{self.width})
+            .field("height", &{self.height})
+            .field("bpp", &self.bpp)
+            .finish()
+    }
+}
+
+impl PartialEq for FramebufferTag {
+    fn eq(&self, other: &Self) -> bool {
+        (
+            {self.typ} == {other.typ}
+            && {self.size} == {other.size}
+            && {self.address} == {other.address}
+            && {self.pitch} == {other.pitch}
+            && {self.width} == {other.width}
+            && {self.height} == {other.height}
+            && {self.bpp} == {other.bpp}
+            && {self.type_no} == {other.type_no}
+            && self.buffer == other.buffer
+        )
     }
 }
 

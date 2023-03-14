@@ -5,6 +5,7 @@ use crate::builder::boxed_dst_tag;
 use crate::builder::traits::StructAsBytes;
 
 use core::convert::TryInto;
+use core::fmt::Debug;
 use core::mem;
 use core::str::Utf8Error;
 
@@ -21,7 +22,7 @@ const METADATA_SIZE: usize = mem::size_of::<TagType>() + mem::size_of::<u32>();
 ///
 /// The name is a normal C-style UTF-8 zero-terminated string that can be
 /// obtained via the `name` method.
-#[derive(Debug)]
+
 #[repr(C, packed)] // only repr(C) would add unwanted padding before first_section
 pub struct BootLoaderNameTag {
     typ: TagType,
@@ -67,6 +68,16 @@ impl BootLoaderNameTag {
 impl StructAsBytes for BootLoaderNameTag {
     fn byte_size(&self) -> usize {
         self.size.try_into().unwrap()
+    }
+}
+
+impl Debug for BootLoaderNameTag {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("BootLoaderNameTag")
+            .field("typ", &{self.typ})
+            .field("size", &{self.size})
+            .field("name", &self.name())
+            .finish()
     }
 }
 
