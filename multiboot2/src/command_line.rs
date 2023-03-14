@@ -72,6 +72,8 @@ impl StructAsBytes for CommandLineTag {
 
 #[cfg(test)]
 mod tests {
+    use core::ptr::slice_from_raw_parts;
+
     use crate::{TagType, command_line::METADATA_SIZE};
 
     const MSG: &str = "hello";
@@ -98,8 +100,8 @@ mod tests {
     fn test_parse_str() {
         let tag = get_bytes();
         let tag = unsafe {
-            let (ptr, _) = tag.as_ptr().to_raw_parts();
-            (core::ptr::from_raw_parts(
+            let ptr = tag.as_ptr() as *const ();
+            (slice_from_raw_parts(
                 ptr, tag.len() - METADATA_SIZE
             ) as *const super::CommandLineTag)
                 .as_ref()

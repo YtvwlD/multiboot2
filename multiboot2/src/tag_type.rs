@@ -12,6 +12,7 @@ use core::fmt::{Debug, Formatter};
 use core::hash::Hash;
 use core::marker::PhantomData;
 use core::mem::size_of;
+use core::ptr::slice_from_raw_parts;
 
 /// Serialized form of [`TagType`] that matches the binary representation
 /// (`u32`). The abstraction corresponds to the `typ`/`type` field of a
@@ -306,7 +307,7 @@ impl Tag {
     pub fn cast_tag<'a, T: ?Sized>(&self) -> &'a T {
         let (ptr, _) = (self as *const Tag).to_raw_parts();
         unsafe {
-            &*(core::ptr::from_raw_parts(ptr, self.size.try_into().unwrap()) as *const T)
+            &*(slice_from_raw_parts(ptr, self.size.try_into().unwrap()) as *const T)
         }
     }
 }
@@ -378,15 +379,15 @@ impl<'a> Iterator for TagIter<'a> {
             } => None, // end tag
             tag => {
                 // go to next tag
-                let (tag_addr, _) = self.current.to_raw_parts();
+                let tag_addr = self.current as *const ();
                 let mut tag_addr = tag_addr as usize;
                 tag_addr += ((tag.size + 7) & !7) as usize; //align at 8 byte
                 let size: usize = unsafe {
                     (tag_addr as *const u32).add(1).read()
                 }.try_into().unwrap();
-                self.current = core::ptr::from_raw_parts(
+                self.current = slice_from_raw_parts(
                     tag_addr as *const (), size - METADATA_SIZE,
-                );
+                ) as *const Tag;
 
                 Some(tag)
             }

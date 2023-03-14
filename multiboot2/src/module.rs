@@ -8,6 +8,7 @@ use crate::builder::traits::StructAsBytes;
 use core::convert::TryInto;
 use core::fmt::{Debug, Formatter};
 use core::mem;
+use core::ptr::slice_from_raw_parts;
 use core::str::Utf8Error;
 
 #[cfg(feature = "builder")]
@@ -114,8 +115,8 @@ impl<'a> Iterator for ModuleIter<'a> {
         self.iter
             .find(|tag| tag.typ == TagType::Module)
             .map(|tag| unsafe {
-                let (ptr, _) = (tag as *const Tag).to_raw_parts();
-                &*(core::ptr::from_raw_parts(
+                let ptr = tag as *const Tag as *const ();
+                &*(slice_from_raw_parts(
                     ptr, tag.size as usize - METADATA_SIZE,
                 ) as *const ModuleTag)
              })
@@ -134,6 +135,8 @@ impl<'a> Debug for ModuleIter<'a> {
 
 #[cfg(test)]
 mod tests {
+    use core::ptr::slice_from_raw_parts;
+
     use crate::{TagType, module::METADATA_SIZE};
 
     const MSG: &str = "hello";
@@ -163,9 +166,9 @@ mod tests {
     fn test_parse_str() {
         let tag = get_bytes();
         let tag = unsafe {
-            let (ptr, _) = tag.as_ptr().to_raw_parts();
+            let ptr = tag.as_ptr() as *const ();
             &*(
-                core::ptr::from_raw_parts(ptr, tag.len() - METADATA_SIZE)
+                slice_from_raw_parts(ptr, tag.len() - METADATA_SIZE)
                 as *const super::ModuleTag
             )
         };
