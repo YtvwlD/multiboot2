@@ -14,8 +14,6 @@ use alloc::boxed::Box;
 #[cfg(feature = "builder")]
 use alloc::vec::Vec;
 
-const METADATA_SIZE: usize = mem::size_of::<TagTypeId>() + mem::size_of::<u32>();
-
 /// The VBE Framebuffer information Tag.
 #[derive(Debug, PartialEq, Eq)]
 #[repr(C, packed)]
@@ -69,8 +67,7 @@ impl FramebufferTag {
         bytes.extend(bpp.to_le_bytes());
         bytes.extend(buffer_type.to_bytes());
 
-        let size = (bytes.len() + METADATA_SIZE).try_into().unwrap();
-        let tag = boxed_dst_tag(TagType::Framebuffer.into(), size, Some(&bytes));
+        let tag = boxed_dst_tag(TagType::Framebuffer.into(), &bytes);
         unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
     }
 

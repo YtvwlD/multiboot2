@@ -11,36 +11,32 @@ use core::alloc::Layout;
 use core::convert::TryInto;
 use core::mem::size_of;
 
-use crate::{Tag, TagTypeId};
+use crate::tag_type::{Tag, TagTypeId};
 
-/// Create a boxed tag with the given size. This includes type and size.
-pub(super) fn boxed_dst_tag(typ: TagTypeId, size: u32, content: Option<&[u8]>) -> Box<Tag> {
+/// Create a boxed tag with the given content.
+pub(super) fn boxed_dst_tag(typ: TagTypeId, content: &[u8]) -> Box<Tag> {
     // based on https://stackoverflow.com/a/64121094/2192464
     let (layout, size_offset) = Layout::new::<TagTypeId>()
         .extend(Layout::new::<u32>())
         .unwrap();
     let (layout, inner_offset) = layout
-        .extend(
-            Layout::array::<usize>(size as usize - size_of::<TagTypeId>() - size_of::<u32>())
-                .unwrap(),
-        )
+        .extend(Layout::array::<usize>(content.len()).unwrap())
         .unwrap();
     let ptr = unsafe { alloc(layout) };
     assert!(!ptr.is_null());
     unsafe {
         // initialize the content as good as we can
         ptr.cast::<TagTypeId>().write(typ);
-        ptr.add(size_offset).cast::<u32>().write(size);
+        ptr.add(size_offset).cast::<u32>().write(
+            (content.len() + size_of::<TagTypeId>() + size_of::<u32>())
+                .try_into()
+                .unwrap(),
+        );
         // initialize body
-        if let Some(c) = content {
-            let content_ptr = ptr.add(inner_offset);
-            for (idx, val) in c.iter().enumerate() {
-                content_ptr.add(idx).write(*val);
-            }
+        let content_ptr = ptr.add(inner_offset);
+        for (idx, val) in content.iter().enumerate() {
+            content_ptr.add(idx).write(*val);
         }
-        Box::from_raw(core::ptr::from_raw_parts_mut(
-            ptr as *mut (),
-            content.unwrap().len(),
-        ))
+        Box::from_raw(core::ptr::from_raw_parts_mut(ptr as *mut (), content.len()))
     }
 }

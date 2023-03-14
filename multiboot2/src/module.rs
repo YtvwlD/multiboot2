@@ -35,13 +35,11 @@ impl ModuleTag {
         // allocate a C string
 
         let cstr = CString::new(cmdline).expect("failed to create CString");
-        let bytes = cstr.to_bytes_with_nul();
-        let size = (bytes.len() + METADATA_SIZE).try_into().unwrap();
         let start_bytes = start.to_le_bytes();
         let end_bytes = end.to_le_bytes();
         let mut content_bytes = [start_bytes, end_bytes].concat();
         content_bytes.extend_from_slice(cstr.as_bytes_with_nul());
-        let tag = boxed_dst_tag(TagType::Module.into(), size, Some(content_bytes.as_slice()));
+        let tag = boxed_dst_tag(TagType::Module.into(), content_bytes.as_slice());
         unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
     }
 

@@ -34,13 +34,7 @@ impl BootLoaderNameTag {
     pub fn new(name: &str) -> Box<Self> {
         // allocate a C string
         let cstr = CString::new(name).expect("failed to create CString");
-        let bytes = cstr.to_bytes_with_nul();
-        let size = (bytes.len() + METADATA_SIZE).try_into().unwrap();
-        let tag = boxed_dst_tag(
-            TagType::BootLoaderName.into(),
-            size,
-            Some(cstr.as_bytes_with_nul()),
-        );
+        let tag = boxed_dst_tag(TagType::BootLoaderName.into(), cstr.as_bytes_with_nul());
         unsafe { Box::from_raw(Box::into_raw(tag) as *mut Self) }
     }
 
@@ -106,7 +100,7 @@ mod tests {
                 .as_ref()
                 .unwrap()
         };
-        assert_eq!({ tag.typ }, TagType::BootLoaderName);
+        assert_eq!({ tag.typ }, TagType::BootLoaderName.val());
         assert_eq!(tag.name().expect("must be valid UTF-8"), MSG);
     }
 }
