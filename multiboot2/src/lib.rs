@@ -32,8 +32,6 @@
 //! ## MSRV
 //! The MSRV is 1.56.1 stable.
 
-#![feature(ptr_metadata)]
-
 #[cfg(feature = "builder")]
 extern crate alloc;
 
@@ -43,6 +41,7 @@ extern crate alloc;
 extern crate std;
 
 use core::fmt;
+use core::ptr::slice_from_raw_parts;
 use derive_more::Display;
 
 use crate::framebuffer::UnknownFramebufferType;
@@ -398,7 +397,7 @@ impl BootInformation {
         let size: usize = unsafe { (next_ptr as *const u32).add(1).read() }
             .try_into()
             .unwrap();
-        TagIter::new(core::ptr::from_raw_parts(next_ptr, size - METADATA_SIZE))
+        TagIter::new(slice_from_raw_parts(next_ptr, size - METADATA_SIZE) as *mut Tag)
     }
 }
 
