@@ -64,6 +64,18 @@ impl MemoryMapTag {
             phantom: PhantomData,
         }
     }
+
+    /// Return a mutable iterator over all marked memory areas.
+    pub fn all_memory_areas_mut(&mut self) -> impl Iterator<Item = &mut MemoryArea> {
+        let self_ptr = self as *mut MemoryMapTag;
+        let start_area = (&mut self.areas[0]) as *mut MemoryArea;
+        MemoryAreaIterMut {
+            current_area: start_area as u64,
+            last_area: (self_ptr as *const() as u64 + (self.size - self.entry_size) as u64),
+            entry_size: self.entry_size,
+            phantom: PhantomData,
+        }
+    }
 }
 
 #[cfg(feature = "builder")]
@@ -157,6 +169,28 @@ impl<'a> Iterator for MemoryAreaIter<'a> {
             None
         } else {
             let area = unsafe { &*(self.current_area as *const MemoryArea) };
+            self.current_area += self.entry_size as u64;
+            Some(area)
+        }
+    }
+}
+
+/// A mutable iterator over all memory areas
+#[derive(Clone, Debug)]
+pub struct MemoryAreaIterMut<'a> {
+    current_area: u64,
+    last_area: u64,
+    entry_size: u32,
+    phantom: PhantomData<&'a MemoryArea>,
+}
+
+impl<'a> Iterator for MemoryAreaIterMut<'a> {
+    type Item = &'a mut MemoryArea;
+    fn next(&mut self) -> Option<&'a mut MemoryArea> {
+        if self.current_area > self.last_area {
+            None
+        } else {
+            let area = unsafe { &mut *(self.current_area as *mut MemoryArea) };
             self.current_area += self.entry_size as u64;
             Some(area)
         }

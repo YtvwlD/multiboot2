@@ -252,6 +252,12 @@ impl BootInformation {
             .map(|tag| unsafe { &*(tag as *const Tag as *const MemoryMapTag) })
     }
 
+    /// Search for the Memory map tag, return a mutable reference.
+    pub fn memory_map_tag_mut(&mut self) -> Option<&mut MemoryMapTag> {
+        self.get_tag(TagType::Mmap)
+            .map(|tag| unsafe { &mut *(tag as *const Tag as *mut MemoryMapTag) })
+    }
+
     /// Get an iterator of all module tags.
     pub fn module_tags(&self) -> ModuleIter {
         module::module_iter(self.tags())
