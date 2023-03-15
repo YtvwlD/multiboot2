@@ -74,7 +74,7 @@ mod tag_trait;
 mod tag_type;
 mod vbe_info;
 
-pub use boot_information::{BootInformation, BootInformationHeader, MbiLoadError};
+pub use boot_information::{BootInformation, BootInformationHeader, BootInformationInner, MbiLoadError};
 pub use boot_loader_name::BootLoaderNameTag;
 pub use command_line::CommandLineTag;
 pub use efi::{
@@ -824,7 +824,7 @@ mod tests {
     /// Helper for [`grub2`].
     #[allow(clippy::cognitive_complexity)]
     fn test_grub2_boot_info(
-        bi: &BootInformation,
+        bi: &BootInformation<&BootInformationInner>,
         addr: usize,
         string_addr: u64,
         bytes: &[u8],

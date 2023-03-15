@@ -3,7 +3,7 @@
 #[cfg(feature = "builder")]
 use crate::builder::AsBytes;
 use crate::framebuffer::UnknownFramebufferType;
-use crate::tag::{TagHeader, TagIter};
+use crate::tag::{TagHeader, TagIter, TagIterMut};
 use crate::{
     module, BasicMemoryInfoTag, BootLoaderNameTag, CommandLineTag, EFIBootServicesNotExitedTag,
     EFIImageHandle32Tag, EFIImageHandle64Tag, EFIMemoryMapTag, EFISdt32Tag, EFISdt64Tag,
@@ -68,8 +68,9 @@ impl AsBytes for BootInformationHeader {}
 /// This type holds the whole data of the MBI. This helps to better satisfy miri
 /// when it checks for memory issues.
 #[derive(ptr_meta::Pointee)]
+#[allow(missing_debug_implementations)]
 #[repr(C)]
-struct BootInformationInner {
+pub struct BootInformationInner {
     header: BootInformationHeader,
     tags: [u8],
 }
@@ -93,11 +94,23 @@ impl BootInformationInner {
     }
 }
 
+impl AsRef<BootInformationInner> for BootInformationInner {
+    fn as_ref(&self) -> &BootInformationInner {
+        self
+    }
+}
+
+impl AsMut<BootInformationInner> for BootInformationInner {
+    fn as_mut(&mut self) -> &mut BootInformationInner {
+        self
+    }
+}
+
 /// A Multiboot 2 Boot Information (MBI) accessor.
 #[repr(transparent)]
-pub struct BootInformation<'a>(&'a BootInformationInner);
+pub struct BootInformation<T: AsRef<BootInformationInner>>(T);
 
-impl<'a> BootInformation<'a> {
+impl BootInformation<&BootInformationInner> {
     /// Loads the [`BootInformation`] from a pointer. The pointer must be valid
     /// and aligned to an 8-byte boundary, as defined by the spec.
     ///
@@ -146,7 +159,42 @@ impl<'a> BootInformation<'a> {
 
         Ok(Self(mbi))
     }
+}
 
+impl BootInformation<&mut BootInformationInner> {
+    /// `BootInformation::load`, but mutably.
+    ///
+    /// # Safety
+    /// The same considerations that apply to `load` also apply here, but the
+    /// memory can be modified (through the `_mut` methods).
+    pub unsafe fn load_mut(ptr: *mut BootInformationHeader) -> Result<Self, MbiLoadError> {
+        // null or not aligned
+        if ptr.is_null() || ptr.align_offset(8) != 0 {
+            return Err(MbiLoadError::IllegalAddress);
+        }
+
+        // mbi: reference to basic header
+        let mbi = &*ptr;
+
+        // Check if total size is not 0 and a multiple of 8.
+        if mbi.total_size == 0 || mbi.total_size & 0b111 != 0 {
+            return Err(MbiLoadError::IllegalTotalSize(mbi.total_size));
+        }
+
+        let slice_size = mbi.total_size as usize - size_of::<BootInformationHeader>();
+        // mbi: reference to full mbi
+        let mbi = ptr_meta::from_raw_parts_mut::<BootInformationInner>(ptr.cast(), slice_size);
+        let mbi = &mut *mbi;
+
+        if !mbi.has_valid_end_tag() {
+            return Err(MbiLoadError::NoEndTag);
+        }
+
+        Ok(Self(mbi))
+    }
+}
+
+impl<T: AsRef<BootInformationInner>> BootInformation<T> {
     /// Get the start address of the boot info.
     #[must_use]
     pub fn start_address(&self) -> usize {
@@ -155,8 +203,8 @@ impl<'a> BootInformation<'a> {
 
     /// Get the start address of the boot info as pointer.
     #[must_use]
-    pub const fn as_ptr(&self) -> *const () {
-        core::ptr::addr_of!(*self.0).cast()
+    pub fn as_ptr(&self) -> *const () {
+        core::ptr::addr_of!(*self.0.as_ref()).cast()
     }
 
     /// Get the end address of the boot info.
@@ -176,8 +224,8 @@ impl<'a> BootInformation<'a> {
 
     /// Get the total size of the boot info struct.
     #[must_use]
-    pub const fn total_size(&self) -> usize {
-        self.0.header.total_size as usize
+    pub fn total_size(&self) -> usize {
+        self.0.as_ref().header.total_size as usize
     }
 
     // ######################################################
@@ -396,7 +444,7 @@ impl<'a> BootInformation<'a> {
     /// assert_eq!(tag.name(), Ok("name"));
     /// ```
     #[must_use]
-    pub fn get_tag<TagT: TagTrait + ?Sized + 'a>(&'a self) -> Option<&'a TagT> {
+    pub fn get_tag<TagT: TagTrait + ?Sized>(&self) -> Option<&TagT> {
         self.tags()
             .find(|tag| tag.typ == TagT::ID)
             .map(|tag| tag.cast_tag::<TagT>())
@@ -404,12 +452,31 @@ impl<'a> BootInformation<'a> {
 
     /// Returns an iterator over all tags.
     fn tags(&self) -> TagIter {
-        TagIter::new(&self.0.tags)
+        TagIter::new(&self.0.as_ref().tags)
     }
 }
 
-impl fmt::Debug for BootInformation<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<T: AsRef<BootInformationInner> + AsMut<BootInformationInner>> BootInformation<T> {
+    /// Search for the Memory map tag, return a mutable reference.
+    pub fn memory_map_tag_mut(&mut self) -> Option<&mut MemoryMapTag> {
+        self.get_tag_mut::<MemoryMapTag>()
+    }
+
+    /// Get a tag, but mutably.
+    fn get_tag_mut<TagT: TagTrait + ?Sized>(&mut self) -> Option<&mut TagT> {
+        self.tags_mut()
+            .find(|tag| tag.typ == TagT::ID)
+            .map(|tag| tag.cast_tag_mut::<TagT>())
+    }
+
+    /// Returns a mutable iterator over all tags.
+    fn tags_mut(&mut self) -> TagIterMut {
+        TagIterMut::new(&mut self.0.as_mut().tags)
+    }
+}
+
+impl<T: AsRef<BootInformationInner>> fmt::Debug for BootInformation<T> {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         /// Limit how many Elf-Sections should be debug-formatted.
         /// Can be thousands of sections for a Rust binary => this is useless output.
         /// If the user really wants this, they should debug-format the field directly.

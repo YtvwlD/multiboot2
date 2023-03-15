@@ -70,6 +70,13 @@ impl MemoryMapTag {
         assert_eq!(self.entry_size as usize, mem::size_of::<MemoryArea>());
         &self.areas
     }
+
+    /// Return a mutable slice of the provided [`MemoryArea`]s.
+    pub fn memory_areas_mut(&mut self) -> &mut [MemoryArea] {
+        // If this ever fails, we need to model this differently in this crate.
+        assert_eq!(self.entry_size as usize, mem::size_of::<MemoryArea>());
+        &mut self.areas
+    }
 }
 
 impl TagTrait for MemoryMapTag {
