@@ -12,7 +12,7 @@ use core::fmt::{Debug, Formatter};
 use core::hash::Hash;
 use core::marker::PhantomData;
 use core::mem::size_of;
-use core::ptr::slice_from_raw_parts;
+use core::ptr::{slice_from_raw_parts, slice_from_raw_parts_mut};
 
 /// Serialized form of [`TagType`] that matches the binary representation
 /// (`u32`). The abstraction corresponds to the `typ`/`type` field of a
@@ -306,6 +306,10 @@ impl Tag {
     pub fn cast_tag<'a, T: ?Sized>(&self) -> &'a T {
         unsafe { &*(self as *const Tag as *const T) }
     }
+
+    pub(crate) fn cast_tag_mut<'a, T: ?Sized>(&mut self) -> &'a mut T {
+        unsafe { &mut *(self as *mut Tag as *mut T) }
+    }
 }
 
 impl Debug for Tag {
@@ -390,6 +394,49 @@ impl<'a> Iterator for TagIter<'a> {
                     .unwrap();
                 self.current =
                     slice_from_raw_parts(tag_addr as *const (), size - METADATA_SIZE) as *const Tag;
+
+                Some(tag)
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TagIterMut<'a> {
+    pub current: *mut Tag,
+    phantom: PhantomData<&'a mut Tag>,
+}
+
+impl<'a> TagIterMut<'a> {
+    pub fn new(first: *mut Tag) -> Self {
+        TagIterMut {
+            current: first,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a> Iterator for TagIterMut<'a> {
+    type Item = &'a mut Tag;
+
+    fn next(&mut self) -> Option<&'a mut Tag> {
+        match unsafe { &mut *self.current } {
+            &mut Tag {
+                // END-Tag
+                typ: TagTypeId(0),
+                size: 8,
+                content: _,
+            } => None, // end tag
+            tag => {
+                // go to next tag
+                let tag_addr = self.current as *mut ();
+                let mut tag_addr = tag_addr as usize;
+                tag_addr += ((tag.size + 7) & !7) as usize; //align at 8 byte
+                let size: usize = unsafe { (tag_addr as *mut u32).add(1).read() }
+                    .try_into()
+                    .unwrap();
+                self.current =
+                    slice_from_raw_parts_mut(tag_addr as *mut (), size - METADATA_SIZE) as *mut Tag;
 
                 Some(tag)
             }

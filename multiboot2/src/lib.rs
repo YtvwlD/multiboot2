@@ -62,7 +62,7 @@ pub use memory_map::{
 pub use module::{ModuleIter, ModuleTag};
 pub use rsdp::{RsdpV1Tag, RsdpV2Tag};
 pub use tag_type::{EndTag, Tag, TagType, TagTypeId};
-use tag_type::{TagIter, METADATA_SIZE};
+use tag_type::{TagIter, TagIterMut, METADATA_SIZE};
 pub use vbe_info::{
     VBECapabilities, VBEControlInfo, VBEDirectColorAttributes, VBEField, VBEInfoTag,
     VBEMemoryModel, VBEModeAttributes, VBEModeInfo, VBEWindowAttributes,
@@ -262,6 +262,12 @@ impl BootInformation {
         self.get_tag::<MemoryMapTag, _>(TagType::Mmap)
     }
 
+    /// Search for the Memory map tag, return a mutable reference.
+    pub fn memory_map_tag_mut(&mut self) -> Option<&mut MemoryMapTag> {
+        self.get_tag_mut(TagType::Mmap)
+            .map(|tag| unsafe { &mut *(tag as *mut Tag as *mut MemoryMapTag) })
+    }
+
     /// Get an iterator of all module tags.
     pub fn module_tags(&self) -> ModuleIter {
         module::module_iter(self.tags())
@@ -392,12 +398,30 @@ impl BootInformation {
             .map(|tag| tag.cast_tag::<Tag>())
     }
 
+    fn get_tag_mut<Tag: ?Sized, TagType: Into<TagTypeId>>(
+        &mut self,
+        typ: TagType,
+    ) -> Option<&mut Tag> {
+        let typ = typ.into();
+        self.tags_mut()
+            .find(|tag| tag.typ == typ)
+            .map(|tag| tag.cast_tag_mut::<Tag>())
+    }
+
     fn tags(&self) -> TagIter {
         let next_ptr = unsafe { self.inner.offset(1) } as *const ();
         let size: usize = unsafe { (next_ptr as *const u32).add(1).read() }
             .try_into()
             .unwrap();
         TagIter::new(slice_from_raw_parts(next_ptr, size - METADATA_SIZE) as *mut Tag)
+    }
+
+    fn tags_mut(&mut self) -> TagIterMut {
+        let next_ptr = unsafe { self.inner.offset(1) } as *mut ();
+        let size: usize = unsafe { (next_ptr as *mut u32).add(1).read() }
+            .try_into()
+            .unwrap();
+        TagIterMut::new(slice_from_raw_parts(next_ptr, size - METADATA_SIZE) as *mut Tag)
     }
 }
 
