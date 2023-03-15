@@ -245,6 +245,12 @@ impl BootInformation {
             .map(|tag| unsafe { &*(tag as *const Tag as *const BasicMemoryInfoTag) })
     }
 
+    /// Search for the basic memory info tag, return a mutable reference.
+    pub fn basic_memory_info_tag_mut(&mut self) -> Option<&mut BasicMemoryInfoTag> {
+        self.get_tag(TagType::BasicMeminfo)
+            .map(|tag| unsafe { &mut *(tag as *const Tag as *mut BasicMemoryInfoTag) })
+    }
+
     /// Search for the ELF Sections tag.
     pub fn elf_sections_tag(&self) -> Option<&ElfSectionsTag> {
         self.get_tagg::<Tag, _>(TagType::ElfSections)
