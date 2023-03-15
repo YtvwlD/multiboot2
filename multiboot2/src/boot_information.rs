@@ -435,6 +435,11 @@ impl<H: AsRef<DynSizedStructure<BootInformationHeader>> + AsMut<DynSizedStructur
         self.get_tag_mut::<MemoryMapTag>()
     }
 
+    /// Search for the basic memory info tag, return a mutable reference.
+    pub fn basic_memory_info_tag_mut(&mut self) -> Option<&mut BasicMemoryInfoTag> {
+        self.get_tag_mut::<BasicMemoryInfoTag>()
+    }
+
     /// Get a tag, but mutably.
     fn get_tag_mut<T: Tag<IDType = TagType, Header = TagHeader> + ?Sized>(
         &mut self,
