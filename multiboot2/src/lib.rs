@@ -61,6 +61,9 @@ mod builder;
 /// Iterator over the tags of a Multiboot2 boot information.
 pub type TagIter<'a> = multiboot2_common::TagIter<'a, TagHeader>;
 
+/// Iterator over the tags of a Multiboot2 boot information, but mutably.
+pub type TagIterMut<'a> = multiboot2_common::TagIterMut<'a, TagHeader>;
+
 /// A generic version of all boot information tags.
 #[cfg(test)]
 pub type GenericInfoTag = multiboot2_common::DynSizedStructure<TagHeader>;
@@ -819,7 +822,7 @@ mod tests {
     /// Helper for [`grub2`].
     #[allow(clippy::cognitive_complexity)]
     fn test_grub2_boot_info(
-        bi: &BootInformation,
+        bi: &BootInformation<&DynSizedStructure<BootInformationHeader>>,
         addr: usize,
         string_addr: u64,
         bytes: &[u8],

@@ -3,7 +3,7 @@
 use crate::{Header, MemoryError, ALIGNMENT};
 use core::marker::PhantomData;
 use core::mem;
-use core::ops::Deref;
+use core::ops::{Deref, DerefMut};
 
 /// Wraps a byte slice representing a Multiboot2 structure including an optional
 /// terminating padding, if necessary. It guarantees that the memory
@@ -44,6 +44,54 @@ impl<'a, H: Header> Deref for BytesRef<'a, H> {
 
     fn deref(&self) -> &Self::Target {
         &self.bytes
+    }
+}
+
+/// Wraps a mutable byte slice representing a Multiboot2 structure including an
+/// optional terminating padding, if necessary. It guarantees that the memory
+/// requirements promised in the crates description are respected.
+#[derive(Debug, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct BytesRefMut<'a, H: Header> {
+    bytes: &'a mut [u8],
+    // Ensure that consumers can rely on the size properties for `H` that
+    // already have been verified when this type was constructed.
+    _h: PhantomData<H>,
+}
+
+impl<'a, H: Header> TryFrom<&'a mut [u8]> for BytesRefMut<'a, H> {
+    type Error = MemoryError;
+
+    fn try_from(bytes: &'a mut [u8]) -> Result<Self, Self::Error> {
+        if bytes.len() < mem::size_of::<H>() {
+            return Err(MemoryError::ShorterThanHeader);
+        }
+        // Doesn't work as expected: if align_of_val(&value[0]) < ALIGNMENT {
+        if bytes.as_mut_ptr().align_offset(ALIGNMENT) != 0 {
+            return Err(MemoryError::WrongAlignment);
+        }
+        let padding_bytes = bytes.len() % ALIGNMENT;
+        if padding_bytes != 0 {
+            return Err(MemoryError::MissingPadding);
+        }
+        Ok(Self {
+            bytes,
+            _h: PhantomData,
+        })
+    }
+}
+
+impl<'a, H: Header> Deref for BytesRefMut<'a, H> {
+    type Target = &'a mut [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.bytes
+    }
+}
+
+impl<'a, H: Header> DerefMut for BytesRefMut<'a, H> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.bytes
     }
 }
 

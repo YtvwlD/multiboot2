@@ -5,7 +5,7 @@ use alloc::format;
 use alloc::vec::Vec;
 use multiboot2::BootInformation;
 
-pub fn run(mbi: &BootInformation) -> anyhow::Result<()> {
+pub fn run<T: AsRef<DynSizedStructure<BootInformationHeader>>>(mbi: &BootInformation<T>) -> anyhow::Result<()> {
     println!("MBI: {mbi:#x?}");
     println!();
 
@@ -27,7 +27,7 @@ pub fn run(mbi: &BootInformation) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub(self) fn print_memory_map(mbi: &BootInformation) -> anyhow::Result<()> {
+pub(self) fn print_memory_map<T: AsRef<DynSizedStructure<BootInformationHeader>>>(mbi: &BootInformation<T>) -> anyhow::Result<()> {
     let memmap = mbi
         .memory_map_tag()
         .ok_or("Should have memory map")
@@ -46,7 +46,7 @@ pub(self) fn print_memory_map(mbi: &BootInformation) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub(self) fn print_elf_info(mbi: &BootInformation) -> anyhow::Result<()> {
+pub(self) fn print_elf_info<T: AsRef<DynSizedStructure<BootInformationHeader>>>(mbi: &BootInformation<T>) -> anyhow::Result<()> {
     let sections_iter = mbi
         .elf_sections()
         .ok_or("Should have elf sections")
@@ -71,7 +71,7 @@ pub(self) fn print_elf_info(mbi: &BootInformation) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub(self) fn print_module_info(mbi: &BootInformation) -> anyhow::Result<()> {
+pub(self) fn print_module_info<T: AsRef<DynSizedStructure<BootInformationHeader>>>(mbi: &BootInformation<T>) -> anyhow::Result<()> {
     let modules = mbi.module_tags().collect::<Vec<_>>();
     if modules.len() != 1 {
         Err(anyhow::Error::msg("Should have exactly one boot module"))?

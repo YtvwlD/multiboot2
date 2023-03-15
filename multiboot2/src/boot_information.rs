@@ -6,7 +6,7 @@ use crate::{
     module, BasicMemoryInfoTag, BootLoaderNameTag, CommandLineTag, EFIBootServicesNotExitedTag,
     EFIImageHandle32Tag, EFIImageHandle64Tag, EFIMemoryMapTag, EFISdt32Tag, EFISdt64Tag,
     ElfSectionIter, ElfSectionsTag, EndTag, FramebufferTag, ImageLoadPhysAddrTag, MemoryMapTag,
-    ModuleIter, RsdpV1Tag, RsdpV2Tag, SmbiosTag, TagIter, TagType, VBEInfoTag,
+    ModuleIter, RsdpV1Tag, RsdpV2Tag, SmbiosTag, TagIter, TagIterMut, TagType, VBEInfoTag,
 };
 #[cfg(feature = "unstable")]
 use core::error::Error;
@@ -75,9 +75,9 @@ impl Header for BootInformationHeader {
 
 /// A Multiboot 2 Boot Information (MBI) accessor.
 #[repr(transparent)]
-pub struct BootInformation<'a>(&'a DynSizedStructure<BootInformationHeader>);
+pub struct BootInformation<T: AsRef<DynSizedStructure<BootInformationHeader>>>(T);
 
-impl<'a> BootInformation<'a> {
+impl BootInformation<&DynSizedStructure<BootInformationHeader>> {
     /// Loads the [`BootInformation`] from a pointer. The pointer must be valid
     /// and aligned to an 8-byte boundary, as defined by the spec.
     ///
@@ -111,13 +111,34 @@ impl<'a> BootInformation<'a> {
         }
         Ok(this)
     }
+}
 
+impl BootInformation<&mut DynSizedStructure<BootInformationHeader>> {
+    /// `BootInformation::load`, but mutably.
+    ///
+    /// # Safety
+    /// The same considerations that apply to `load` also apply here, but the
+    /// memory can be modified (through the `_mut` methods).
+    pub unsafe fn load_mut(ptr: *mut BootInformationHeader) -> Result<Self, LoadError> {
+        let ptr = NonNull::new(ptr).ok_or(LoadError::Memory(MemoryError::Null))?;
+        let inner = DynSizedStructure::ref_from_ptr_mut(ptr).map_err(LoadError::Memory)?;
+
+        let this = Self(inner);
+        if !this.has_valid_end_tag() {
+            return Err(LoadError::NoEndTag);
+        }
+        Ok(this)
+    }
+}
+
+impl<H: AsRef<DynSizedStructure<BootInformationHeader>>> BootInformation<H> {
     /// Checks if the MBI has a valid end tag by checking the end of the mbi's
     /// bytes.
     fn has_valid_end_tag(&self) -> bool {
-        let header = self.0.header();
+        let header = self.0.as_ref().header();
         let end_tag_ptr = unsafe {
             self.0
+                .as_ref()
                 .payload()
                 .as_ptr()
                 .add(header.payload_len())
@@ -137,8 +158,8 @@ impl<'a> BootInformation<'a> {
 
     /// Get the start address of the boot info as pointer.
     #[must_use]
-    pub const fn as_ptr(&self) -> *const () {
-        core::ptr::addr_of!(*self.0).cast()
+    pub fn as_ptr(&self) -> *const () {
+        core::ptr::addr_of!(*self.0.as_ref()).cast()
     }
 
     /// Get the end address of the boot info.
@@ -158,8 +179,8 @@ impl<'a> BootInformation<'a> {
 
     /// Get the total size of the boot info struct.
     #[must_use]
-    pub const fn total_size(&self) -> usize {
-        self.0.header().total_size as usize
+    pub fn total_size(&self) -> usize {
+        self.0.as_ref().header().total_size as usize
     }
 
     // ######################################################
@@ -394,9 +415,9 @@ impl<'a> BootInformation<'a> {
     ///
     /// [`TagType`]: crate::TagType
     #[must_use]
-    pub fn get_tag<T: Tag<IDType = TagType, Header = TagHeader> + ?Sized + 'a>(
-        &'a self,
-    ) -> Option<&'a T> {
+    pub fn get_tag<T: Tag<IDType = TagType, Header = TagHeader> + ?Sized>(
+        &self,
+    ) -> Option<&T> {
         self.tags()
             .find(|tag| tag.header().typ == T::ID)
             .map(|tag| tag.cast::<T>())
@@ -404,11 +425,32 @@ impl<'a> BootInformation<'a> {
 
     /// Returns an iterator over all tags.
     pub(crate) fn tags(&self) -> TagIter {
-        TagIter::new(self.0.payload())
+        TagIter::new(self.0.as_ref().payload())
     }
 }
 
-impl fmt::Debug for BootInformation<'_> {
+impl<H: AsRef<DynSizedStructure<BootInformationHeader>> + AsMut<DynSizedStructure<BootInformationHeader>>> BootInformation<H> {
+    /// Search for the Memory map tag, return a mutable reference.
+    pub fn memory_map_tag_mut(&mut self) -> Option<&mut MemoryMapTag> {
+        self.get_tag_mut::<MemoryMapTag>()
+    }
+
+    /// Get a tag, but mutably.
+    fn get_tag_mut<T: Tag<IDType = TagType, Header = TagHeader> + ?Sized>(
+        &mut self,
+    ) -> Option<&mut T> {
+        self.tags_mut()
+            .find(|tag| tag.header().typ == T::ID)
+            .map(|tag| tag.cast_mut::<T>())
+    }
+
+    /// Returns a mutable iterator over all tags.
+    fn tags_mut(&mut self) -> TagIterMut {
+        TagIterMut::new(self.0.as_mut().payload_mut())
+    }
+}
+
+impl<H: AsRef<DynSizedStructure<BootInformationHeader>>> fmt::Debug for BootInformation<H> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         /// Limit how many Elf-Sections should be debug-formatted.
         /// Can be thousands of sections for a Rust binary => this is useless output.

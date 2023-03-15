@@ -156,8 +156,8 @@ mod tag;
 
 #[cfg(feature = "alloc")]
 pub use boxed::{clone_dyn, new_boxed};
-pub use bytes_ref::BytesRef;
-pub use iter::TagIter;
+pub use bytes_ref::{BytesRef, BytesRefMut};
+pub use iter::{TagIter, TagIterMut};
 pub use tag::{MaybeDynSized, Tag};
 
 use core::fmt::Debug;
@@ -238,12 +238,40 @@ impl<H: Header> DynSizedStructure<H> {
         let reference = unsafe { &*ptr };
         Ok(reference)
     }
+    
+    /// Creates a new fat-pointer backed reference to a [`DynSizedStructure`]
+    /// from the given [`BytesRef`].
+    pub fn ref_from_bytes_mut(mut bytes: BytesRefMut<H>) -> Result<&mut Self, MemoryError> {
+        let ptr = bytes.as_mut_ptr().cast::<H>();
+        let hdr = unsafe { &mut *ptr };
+
+        if hdr.payload_len() > bytes.len() {
+            return Err(MemoryError::InvalidReportedTotalSize);
+        }
+
+        // At this point we know that the memory slice fulfills the base
+        // assumptions and requirements. Now, we safety can create the fat
+        // pointer.
+
+        let dst_size = hdr.payload_len();
+        // Create fat pointer for the DST.
+        let ptr = ptr_meta::from_raw_parts_mut(ptr.cast(), dst_size);
+        let reference = unsafe { &mut *ptr };
+        Ok(reference)
+    }
 
     /// Creates a new fat-pointer backed reference to a [`DynSizedStructure`]
     /// from the given `&[u8]`.
     pub fn ref_from_slice(bytes: &[u8]) -> Result<&Self, MemoryError> {
         let bytes = BytesRef::<H>::try_from(bytes)?;
         Self::ref_from_bytes(bytes)
+    }
+    
+    /// Creates a new fat-pointer backed reference to a [`DynSizedStructure`]
+    /// from the given `&mut [u8]`.
+    pub fn ref_from_slice_mut(bytes: &mut [u8]) -> Result<&mut Self, MemoryError> {
+        let bytes = BytesRefMut::<H>::try_from(bytes)?;
+        Self::ref_from_bytes_mut(bytes)
     }
 
     /// Creates a new fat-pointer backed reference to a [`DynSizedStructure`]
@@ -259,6 +287,20 @@ impl<H: Header> DynSizedStructure<H> {
         let slice = unsafe { slice::from_raw_parts(ptr.cast::<u8>(), hdr.total_size()) };
         Self::ref_from_slice(slice)
     }
+    
+    /// Creates a new fat-pointer backed reference to a [`DynSizedStructure`]
+    /// from the given thin pointer to the [`Header`]. It reads the total size
+    /// from the header.
+    ///
+    /// # Safety
+    /// The caller must ensure that the function operates on valid memory.
+    pub unsafe fn ref_from_ptr_mut<'a>(ptr: NonNull<H>) -> Result<&'a mut Self, MemoryError> {
+        let ptr = ptr.as_ptr();
+        let hdr = unsafe { &mut *ptr };
+
+        let slice = unsafe { slice::from_raw_parts_mut(ptr.cast::<u8>(), hdr.total_size()) };
+        Self::ref_from_slice_mut(slice)
+    }
 
     /// Returns the underlying [`Header`].
     pub const fn header(&self) -> &H {
@@ -268,6 +310,11 @@ impl<H: Header> DynSizedStructure<H> {
     /// Returns the underlying payload.
     pub const fn payload(&self) -> &[u8] {
         &self.payload
+    }
+    
+    /// Returns the underlying payload, mutably.
+    pub const fn payload_mut(&mut self) -> &mut [u8] {
+        &mut self.payload
     }
 
     /// Casts the structure tag to a specific [`MaybeDynSized`] implementation which
@@ -296,6 +343,46 @@ impl<H: Header> DynSizedStructure<H> {
         assert_eq!(mem::size_of_val(self), mem::size_of_val(t_ref));
 
         t_ref
+    }
+    
+    /// Casts the structure tag to a specific [`MaybeDynSized`] implementation which
+    /// may be a ZST or DST typed tag. The output type will have the exact same
+    /// size as `*self`. The target type must be sufficient for that. If not,
+    /// the function will panic.
+    ///
+    /// # Safety
+    /// This function is safe due to various sanity checks and the overall
+    /// memory assertions done while constructing this type.
+    ///
+    /// # Panics
+    /// This panics if there is a size mismatch. However, this should never be
+    /// the case if all types follow their documented requirements.
+    pub fn cast_mut<T: MaybeDynSized<Header = H> + ?Sized>(&mut self) -> &mut T {
+        let base_ptr = ptr::addr_of_mut!(*self);
+
+        // This should be a compile-time assertion. However, this is the best
+        // location to place it for now.
+        assert!(T::BASE_SIZE >= mem::size_of::<H>());
+
+        let t_dst_size = T::dst_len(self.header());
+        let t_ptr = ptr_meta::from_raw_parts_mut(base_ptr.cast(), t_dst_size);
+        let t_ref = unsafe { &mut *t_ptr };
+
+        assert_eq!(mem::size_of_val(self), mem::size_of_val(t_ref));
+
+        t_ref
+    }
+}
+
+impl<H: Header> AsRef<Self> for DynSizedStructure<H> {
+    fn as_ref(&self) -> &Self {
+        self
+    }
+}
+
+impl<H: Header> AsMut<Self> for DynSizedStructure<H> {
+    fn as_mut(&mut self) -> &mut Self {
+        self
     }
 }
 
