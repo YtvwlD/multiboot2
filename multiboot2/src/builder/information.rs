@@ -2,7 +2,8 @@
 use crate::builder::traits::StructAsBytes;
 use crate::{
     BasicMemoryInfoTag, BootInformationInner, BootLoaderNameTag, CommandLineTag,
-    ElfSectionsTag, EndTag, FramebufferTag, MemoryMapTag, ModuleTag,
+    EFISdt32, EFISdt64, ElfSectionsTag, EndTag, FramebufferTag, MemoryMapTag,
+    ModuleTag,
 };
 
 use alloc::boxed::Box;
@@ -21,6 +22,8 @@ pub struct Multiboot2InformationBuilder {
     framebuffer_tag: Option<Box<FramebufferTag>>,
     memory_map_tag: Option<Box<MemoryMapTag>>,
     module_tags: Vec<Box<ModuleTag>>,
+    efisdt32: Option<EFISdt32>,
+    efisdt64: Option<EFISdt64>,
 }
 
 impl Multiboot2InformationBuilder {
@@ -29,6 +32,8 @@ impl Multiboot2InformationBuilder {
             basic_memory_info_tag: None,
             boot_loader_name_tag: None,
             command_line_tag: None,
+            efisdt32: None,
+            efisdt64: None,
             elf_sections_tag: None,
             framebuffer_tag: None,
             memory_map_tag: None,
@@ -64,6 +69,12 @@ impl Multiboot2InformationBuilder {
             len += Self::size_or_up_aligned(tag.byte_size())
         }
         if let Some(tag) = &self.command_line_tag {
+            len += Self::size_or_up_aligned(tag.byte_size())
+        }
+        if let Some(tag) = &self.efisdt32 {
+            len += Self::size_or_up_aligned(tag.byte_size())
+        }
+        if let Some(tag) = &self.efisdt64 {
             len += Self::size_or_up_aligned(tag.byte_size())
         }
         if let Some(tag) = &self.elf_sections_tag {
@@ -119,6 +130,12 @@ impl Multiboot2InformationBuilder {
         if let Some(tag) = self.command_line_tag.as_ref() {
             Self::build_add_bytes(&mut data, &tag.struct_as_bytes(), false)
         }
+        if let Some(tag) = self.efisdt32.as_ref() {
+            Self::build_add_bytes(&mut data, &tag.struct_as_bytes(), false)
+        }
+        if let Some(tag) = self.efisdt64.as_ref() {
+            Self::build_add_bytes(&mut data, &tag.struct_as_bytes(), false)
+        }
         if let Some(tag) = self.elf_sections_tag.as_ref() {
             Self::build_add_bytes(&mut data, &tag.struct_as_bytes(), false)
         }
@@ -147,6 +164,14 @@ impl Multiboot2InformationBuilder {
 
     pub fn command_line_tag(&mut self, command_line_tag: Box<CommandLineTag>) {
         self.command_line_tag = Some(command_line_tag);
+    }
+
+    pub fn efisdt32(&mut self, efisdt32: EFISdt32) {
+        self.efisdt32 = Some(efisdt32);
+    }
+
+    pub fn efisdt64(&mut self, efisdt64: EFISdt64) {
+        self.efisdt64 = Some(efisdt64);
     }
 
     pub fn elf_sections_tag(&mut self, elf_sections_tag: Box<ElfSectionsTag>) {
