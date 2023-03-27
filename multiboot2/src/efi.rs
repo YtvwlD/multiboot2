@@ -1,6 +1,12 @@
 //! All MBI tags related to (U)EFI.
 
+use crate::TagType;
 use crate::TagTypeId;
+use core::mem::size_of;
+use core::convert::TryInto;
+
+#[cfg(feature = "builder")]
+use crate::builder::traits::StructAsBytes;
 
 /// EFI system table in 32 bit mode
 #[derive(Clone, Copy, Debug)]
@@ -12,9 +18,25 @@ pub struct EFISdt32 {
 }
 
 impl EFISdt32 {
+    /// Create a new tag to pass the EFI32 System Table pointer.
+    pub fn new(pointer: u32) -> Self {
+        Self {
+            typ: TagType::Efi32,
+            size: size_of::<Self>().try_into().unwrap(),
+            pointer
+        }
+    }
+
     /// The physical address of a i386 EFI system table.
     pub fn sdt_address(&self) -> usize {
         self.pointer as usize
+    }
+}
+
+#[cfg(feature = "builder")]
+impl StructAsBytes for EFISdt32 {
+    fn byte_size(&self) -> usize {
+        size_of::<Self>()
     }
 }
 
@@ -28,9 +50,25 @@ pub struct EFISdt64 {
 }
 
 impl EFISdt64 {
+    /// Create a new tag to pass the EFI64 System Table pointer.
+    pub fn new(pointer: u64) -> Self {
+        Self {
+            typ: TagType::Efi64,
+            size: size_of::<Self>().try_into().unwrap(),
+            pointer
+        }
+    }
+
     /// The physical address of a x86_64 EFI system table.
     pub fn sdt_address(&self) -> usize {
         self.pointer as usize
+    }
+}
+
+#[cfg(feature = "builder")]
+impl StructAsBytes for EFISdt64 {
+    fn byte_size(&self) -> usize {
+        size_of::<Self>()
     }
 }
 
