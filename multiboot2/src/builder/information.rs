@@ -3,7 +3,7 @@ use crate::builder::traits::StructAsBytes;
 use crate::{
     BasicMemoryInfoTag, BootInformationInner, BootLoaderNameTag, CommandLineTag,
     EFISdt32, EFISdt64, ElfSectionsTag, EndTag, FramebufferTag, MemoryMapTag,
-    ModuleTag,
+    ModuleTag, SmbiosTag,
 };
 
 use alloc::boxed::Box;
@@ -24,6 +24,7 @@ pub struct Multiboot2InformationBuilder {
     module_tags: Vec<Box<ModuleTag>>,
     efisdt32: Option<EFISdt32>,
     efisdt64: Option<EFISdt64>,
+    smbios_tags: Vec<Box<SmbiosTag>>,
 }
 
 impl Multiboot2InformationBuilder {
@@ -38,6 +39,7 @@ impl Multiboot2InformationBuilder {
             framebuffer_tag: None,
             memory_map_tag: None,
             module_tags: Vec::new(),
+            smbios_tags: Vec::new(),
         }
     }
 
@@ -87,6 +89,9 @@ impl Multiboot2InformationBuilder {
             len += Self::size_or_up_aligned(tag.byte_size())
         }
         for tag in &self.module_tags {
+            len += Self::size_or_up_aligned(tag.byte_size())
+        }
+        for tag in &self.smbios_tags {
             len += Self::size_or_up_aligned(tag.byte_size())
         }
         // only here size_or_up_aligned is not important, because it is the last tag
@@ -148,6 +153,9 @@ impl Multiboot2InformationBuilder {
         for tag in self.module_tags {
             Self::build_add_bytes(&mut data, &tag.struct_as_bytes(), false)
         }
+        for tag in self.smbios_tags {
+            Self::build_add_bytes(&mut data, &tag.struct_as_bytes(), false)
+        }
 
         Self::build_add_bytes(&mut data, &EndTag::new().struct_as_bytes(), true);
 
@@ -188,6 +196,10 @@ impl Multiboot2InformationBuilder {
 
     pub fn add_module_tag(&mut self, module_tag: Box<ModuleTag>) {
         self.module_tags.push(module_tag);
+    }
+
+    pub fn add_smbios_tag(&mut self, smbios_tag: Box<SmbiosTag>) {
+        self.smbios_tags.push(smbios_tag);
     }
 }
 

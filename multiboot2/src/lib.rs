@@ -64,6 +64,7 @@ pub use module::{ModuleIter, ModuleTag};
 pub use rsdp::{RsdpV1Tag, RsdpV2Tag};
 pub use tag_type::{EndTag, Tag, TagType, TagTypeId};
 use tag_type::{METADATA_SIZE, TagIter};
+pub use smbios::SmbiosTag;
 pub use vbe_info::{
     VBECapabilities, VBEControlInfo, VBEDirectColorAttributes, VBEField, VBEInfoTag,
     VBEMemoryModel, VBEModeAttributes, VBEModeInfo, VBEWindowAttributes,
@@ -81,6 +82,7 @@ mod image_load_addr;
 mod memory_map;
 mod module;
 mod rsdp;
+mod smbios;
 mod tag_type;
 mod vbe_info;
 
