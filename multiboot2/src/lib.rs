@@ -60,6 +60,7 @@ pub use memory_map::{
 };
 pub use module::{ModuleIter, ModuleTag};
 pub use rsdp::{RsdpV1Tag, RsdpV2Tag};
+pub use smbios::SmbiosTag;
 pub use tag_type::TagType;
 use tag_type::{EndTag, METADATA_SIZE, Tag, TagIter};
 pub use vbe_info::{
@@ -79,6 +80,7 @@ mod image_load_addr;
 mod memory_map;
 mod module;
 mod rsdp;
+mod smbios;
 mod tag_type;
 mod vbe_info;
 
