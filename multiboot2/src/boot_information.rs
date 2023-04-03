@@ -440,6 +440,11 @@ impl<H: AsRef<DynSizedStructure<BootInformationHeader>> + AsMut<DynSizedStructur
         self.get_tag_mut::<BasicMemoryInfoTag>()
     }
 
+    /// Search for the EFI Memory map tag, return a mutable reference.
+    pub fn efi_memory_map_tag_mut(&mut self) -> Option<&mut EFIMemoryMapTag> {
+        self.get_tag_mut::<EFIMemoryMapTag>()
+    }
+
     /// Get a tag, but mutably.
     fn get_tag_mut<T: Tag<IDType = TagType, Header = TagHeader> + ?Sized>(
         &mut self,
