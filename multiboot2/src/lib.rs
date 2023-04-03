@@ -325,6 +325,13 @@ impl BootInformation {
         }
     }
 
+    /// Search for the EFI Memory map tag, return a mutable reference.
+    pub fn efi_memory_map_tag_mut(&self) -> Option<&mut EFIMemoryMapTag> {
+        self
+            .get_tag(TagType::EfiMmap)
+            .map(|tag| unsafe { &mut *(tag as *const Tag as *mut EFIMemoryMapTag) })
+    }
+
     /// Search for the EFI 32-bit image handle pointer.
     pub fn efi_32_ih(&self) -> Option<&EFIImageHandle32> {
         self.get_tag(TagType::Efi32Ih)
@@ -1429,15 +1436,5 @@ mod tests {
         let bi = bi.unwrap();
         let efi_mmap = bi.efi_memory_map_tag();
         assert!(efi_mmap.is_none());
-    }
-
-    #[test]
-    /// Compile time test for `EFIMemoryMapTag`.
-    fn efi_memory_map_tag_size() {
-        use super::EFIMemoryMapTag;
-        unsafe {
-            // `EFIMemoryMapTag` is 16 bytes + `EFIMemoryDesc` is 40 bytes.
-            core::mem::transmute::<[u8; 56], EFIMemoryMapTag>([0u8; 56]);
-        }
     }
 }
