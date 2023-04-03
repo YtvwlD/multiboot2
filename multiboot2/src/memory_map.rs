@@ -382,6 +382,25 @@ impl EFIMemoryMapTag {
 
         EFIMemoryAreaIter::new(self)
     }
+
+    /// Returns an iterator over the provided memory areas, but mutably.
+    pub fn memory_areas_mut(&mut self) -> EFIMemoryAreaIterMut {
+        // If this ever fails, this needs to be refactored in a joint-effort
+        // with the uefi-rs project to have all corresponding typings.
+        assert_eq!(self.desc_version, EFIMemoryDesc::VERSION);
+        assert_eq!(
+            self.memory_map
+                .as_ptr()
+                .align_offset(mem::align_of::<EFIMemoryDesc>()),
+            0
+        );
+
+        if self.desc_size as usize > mem::size_of::<EFIMemoryDesc>() {
+            log::debug!("desc_size larger than expected typing. We might miss a few fields.");
+        }
+
+        EFIMemoryAreaIterMut::new(self)
+    }
 }
 
 impl Debug for EFIMemoryMapTag {
@@ -455,6 +474,52 @@ impl<'a> Iterator for EFIMemoryAreaIter<'a> {
 impl<'a> ExactSizeIterator for EFIMemoryAreaIter<'a> {
     fn len(&self) -> usize {
         self.entries
+    }
+}
+
+/// An iterator over the EFI memory areas, mutably.
+#[derive(Debug)]
+pub struct EFIMemoryAreaIterMut<'a> {
+    mmap_tag: &'a mut EFIMemoryMapTag,
+    i: usize,
+    entries: usize,
+    phantom: PhantomData<&'a mut EFIMemoryDesc>,
+}
+
+impl<'a> EFIMemoryAreaIterMut<'a> {
+    fn new(mmap_tag: &'a mut EFIMemoryMapTag) -> Self {
+        let desc_size = mmap_tag.desc_size as usize;
+        let mmap_len = mmap_tag.memory_map.len();
+        assert_eq!(mmap_len % desc_size, 0, "memory map length must be a multiple of `desc_size` by definition. The MBI seems to be corrupt.");
+        Self {
+            mmap_tag,
+            i: 0,
+            entries: mmap_len / desc_size,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a> Iterator for EFIMemoryAreaIterMut<'a> {
+    type Item = &'a mut EFIMemoryDesc;
+    fn next(&mut self) -> Option<&'a mut EFIMemoryDesc> {
+        if self.i >= self.entries {
+            return None;
+        }
+
+        let desc = unsafe {
+            self.mmap_tag
+                .memory_map
+                .as_mut_ptr()
+                .add(self.i * self.mmap_tag.desc_size as usize)
+                .cast::<EFIMemoryDesc>()
+                .as_mut()
+                .unwrap()
+        };
+
+        self.i += 1;
+
+        Some(desc)
     }
 }
 
