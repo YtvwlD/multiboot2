@@ -397,6 +397,24 @@ impl EFIMemoryMapTag {
 
         EFIMemoryAreaIter::new(self)
     }
+
+    /// Return an iterator over ALL marked memory areas, mutably.
+    ///
+    /// This differs from `MemoryMapTag` as for UEFI, the OS needs some non-
+    /// available memory areas for tables and such.
+    pub fn memory_areas_mut(&mut self) -> EFIMemoryAreaIterMut {
+        // If this ever fails, this needs to be refactored in a joint-effort
+        // with the uefi-rs project to have all corresponding typings.
+        assert_eq!(self.desc_version, EFIMemoryDesc::VERSION);
+        assert_eq!(
+            self.memory_map
+                .as_ptr()
+                .align_offset(mem::align_of::<EFIMemoryDesc>()),
+            0
+        );
+
+        EFIMemoryAreaIterMut::new(self)
+    }
 }
 
 impl Debug for EFIMemoryMapTag {
@@ -631,5 +649,51 @@ mod tests {
             },
         ];
         assert_eq!(entries.as_slice(), &expected);
+    }
+}
+
+/// A mutable iterator over the EFI memory areas emitting [`EFIMemoryDesc`] items.
+#[derive(Debug)]
+pub struct EFIMemoryAreaIterMut<'a> {
+    mmap_tag: &'a mut EFIMemoryMapTag,
+    i: usize,
+    entries: usize,
+    phantom: PhantomData<&'a mut EFIMemoryDesc>,
+}
+
+impl<'a> EFIMemoryAreaIterMut<'a> {
+    fn new(mmap_tag: &'a mut EFIMemoryMapTag) -> Self {
+        let desc_size = mmap_tag.desc_size as usize;
+        let mmap_len = mmap_tag.memory_map.len();
+        assert_eq!(mmap_len % desc_size, 0, "memory map length must be a multiple of `desc_size` by definition. The MBI seems to be corrupt.");
+        Self {
+            mmap_tag,
+            i: 0,
+            entries: mmap_len / desc_size,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a> Iterator for EFIMemoryAreaIterMut<'a> {
+    type Item = &'a mut EFIMemoryDesc;
+    fn next(&mut self) -> Option<&'a mut EFIMemoryDesc> {
+        if self.i >= self.entries {
+            return None;
+        }
+
+        let desc = unsafe {
+            self.mmap_tag
+                .memory_map
+                .as_mut_ptr()
+                .add(self.i * self.mmap_tag.desc_size as usize)
+                .cast::<EFIMemoryDesc>()
+                .as_mut()
+                .unwrap()
+        };
+
+        self.i += 1;
+
+        Some(desc)
     }
 }
