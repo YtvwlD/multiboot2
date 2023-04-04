@@ -1,3 +1,7 @@
+use core::convert::TryInto;
+use core::mem::size_of;
+#[cfg(feature = "builder")]
+use crate::builder::traits::StructAsBytes;
 use crate::TagType;
 
 /// If the image has relocatable header tag, this tag contains the image's
@@ -11,8 +15,25 @@ pub struct ImageLoadPhysAddr {
 }
 
 impl ImageLoadPhysAddr {
+    #[cfg(feature = "builder")]
+    pub fn new(load_base_addr: u32) -> Self {
+        Self {
+            typ: TagType::LoadBaseAddr,
+            size: size_of::<Self>().try_into().unwrap(),
+            load_base_addr,
+        }
+    }
+
     /// Returns the load base address.
     pub fn load_base_addr(&self) -> u32 {
         self.load_base_addr
     }
 }
+
+#[cfg(feature = "builder")]
+impl StructAsBytes for ImageLoadPhysAddr {
+    fn byte_size(&self) -> usize {
+        size_of::<Self>()
+    }
+}
+
