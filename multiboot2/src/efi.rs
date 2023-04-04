@@ -81,9 +81,25 @@ pub struct EFIImageHandle32 {
 }
 
 impl EFIImageHandle32 {
+    #[cfg(feature = "builder")]
+    pub fn new(pointer: u32) -> Self {
+        Self {
+            typ: TagType::Efi32Ih,
+            size: size_of::<Self>().try_into().unwrap(),
+            pointer
+        }
+    }
+
     /// Returns the physical address of the EFI image handle.
     pub fn image_handle(&self) -> usize {
         self.pointer as usize
+    }
+}
+
+#[cfg(feature = "builder")]
+impl StructAsBytes for EFIImageHandle32 {
+    fn byte_size(&self) -> usize {
+        size_of::<Self>()
     }
 }
 
@@ -97,8 +113,24 @@ pub struct EFIImageHandle64 {
 }
 
 impl EFIImageHandle64 {
+    #[cfg(feature = "builder")]
+    pub fn new(pointer: u64) -> Self {
+        Self {
+            typ: TagType::Efi64Ih,
+            size: size_of::<Self>().try_into().unwrap(),
+            pointer
+        }
+    }
+
     /// Returns the physical address of the EFI image handle.
     pub fn image_handle(&self) -> usize {
         self.pointer as usize
+    }
+}
+
+#[cfg(feature = "builder")]
+impl StructAsBytes for EFIImageHandle64 {
+    fn byte_size(&self) -> usize {
+        size_of::<Self>()
     }
 }
