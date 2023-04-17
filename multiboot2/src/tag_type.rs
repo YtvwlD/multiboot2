@@ -301,17 +301,6 @@ pub struct Tag {
     content: [u8],
 }
 
-impl Tag {
-    /// Casts the base tag to the specific tag type.
-    pub fn cast_tag<'a, T: ?Sized>(&self) -> &'a T {
-        unsafe { &*(self as *const Tag as *const T) }
-    }
-
-    pub(crate) fn cast_tag_mut<'a, T: ?Sized>(&mut self) -> &'a mut T {
-        unsafe { &mut *(self as *mut Tag as *mut T) }
-    }
-}
-
 impl Debug for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         let tag_type = TagType::from(self.typ);

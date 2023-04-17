@@ -264,7 +264,7 @@ impl BootInformation {
     /// Search for the Memory map tag.
     pub fn memory_map_tag(&self) -> Option<&MemoryMapTag> {
         self.get_tag(TagType::Mmap)
-            .map(|tag| tag.cast_tag::<MemoryMapTag>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const MemoryMapTag) })
     }
 
     /// Search for the Memory map tag, return a mutable reference.
@@ -281,20 +281,20 @@ impl BootInformation {
     /// Search for the BootLoader name tag.
     pub fn boot_loader_name_tag(&self) -> Option<&BootLoaderNameTag> {
         self.get_tag(TagType::BootLoaderName)
-            .map(|tag| tag.cast_tag::<BootLoaderNameTag>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const BootLoaderNameTag) })
     }
 
     /// Search for the Command line tag.
     pub fn command_line_tag(&self) -> Option<&CommandLineTag> {
         self.get_tag(TagType::Cmdline)
-            .map(|tag| tag.cast_tag::<CommandLineTag>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const CommandLineTag) })
     }
 
     /// Search for the VBE framebuffer tag. The result is `Some(Err(e))`, if the
     /// framebuffer type is unknown, while the framebuffer tag is present.
     pub fn framebuffer_tag(&self) -> Option<Result<&FramebufferTag, UnknownFramebufferType>> {
         self.get_tag(TagType::Framebuffer)
-            .map(|tag| tag.cast_tag::<FramebufferTag>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const FramebufferTag) })
             .map(|tag| match tag.buffer_type() {
                 Ok(_) => Ok(tag),
                 Err(e) => Err(e),
@@ -304,25 +304,25 @@ impl BootInformation {
     /// Search for the EFI 32-bit SDT tag.
     pub fn efi_sdt_32_tag(&self) -> Option<&EFISdt32> {
         self.get_tag(TagType::Efi32)
-            .map(|tag| tag.cast_tag::<EFISdt32>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const EFISdt32) })
     }
 
     /// Search for the EFI 64-bit SDT tag.
     pub fn efi_sdt_64_tag(&self) -> Option<&EFISdt64> {
         self.get_tag(TagType::Efi64)
-            .map(|tag| tag.cast_tag::<EFISdt64>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const EFISdt64) })
     }
 
     /// Search for the (ACPI 1.0) RSDP tag.
     pub fn rsdp_v1_tag(&self) -> Option<&RsdpV1Tag> {
         self.get_tag(TagType::AcpiV1)
-            .map(|tag| tag.cast_tag::<RsdpV1Tag>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const RsdpV1Tag) })
     }
 
     /// Search for the (ACPI 2.0 or later) RSDP tag.
     pub fn rsdp_v2_tag(&self) -> Option<&RsdpV2Tag> {
         self.get_tag(TagType::AcpiV2)
-            .map(|tag| tag.cast_tag::<RsdpV2Tag>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const RsdpV2Tag) })
     }
 
     /// Search for the EFI Memory map tag, if the boot services were exited.
@@ -336,7 +336,7 @@ impl BootInformation {
             Some(_tag) => None,
             None => self
                 .get_tag(TagType::EfiMmap)
-                .map(|tag| tag.cast_tag::<EFIMemoryMapTag>()),
+                .map(|tag| unsafe { &*(tag as *const Tag as *const EFIMemoryMapTag) }),
         }
     }
 
@@ -349,25 +349,25 @@ impl BootInformation {
     /// Search for the EFI 32-bit image handle pointer.
     pub fn efi_32_ih(&self) -> Option<&EFIImageHandle32> {
         self.get_tag(TagType::Efi32Ih)
-            .map(|tag| tag.cast_tag::<EFIImageHandle32>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const EFIImageHandle32) })
     }
 
     /// Search for the EFI 64-bit image handle pointer.
     pub fn efi_64_ih(&self) -> Option<&EFIImageHandle64> {
         self.get_tag(TagType::Efi64Ih)
-            .map(|tag| tag.cast_tag::<EFIImageHandle64>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const EFIImageHandle64) })
     }
 
     /// Search for the Image Load Base Physical Address.
     pub fn load_base_addr(&self) -> Option<&ImageLoadPhysAddr> {
         self.get_tag(TagType::LoadBaseAddr)
-            .map(|tag| tag.cast_tag::<ImageLoadPhysAddr>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const ImageLoadPhysAddr) })
     }
 
     /// Search for the VBE information tag.
     pub fn vbe_info_tag(&self) -> Option<&VBEInfoTag> {
         self.get_tag(TagType::Vbe)
-            .map(|tag| tag.cast_tag::<VBEInfoTag>())
+            .map(|tag| unsafe { &*(tag as *const Tag as *const VBEInfoTag) })
     }
 
     fn get(&self) -> &BootInformationInner {
@@ -395,7 +395,7 @@ impl BootInformation {
     /// **Belows example needs Rust 1.64 or newer because of std::ffi imports!**
     /// ```rust,no_run
     /// use std::ffi::{c_char, CStr};
-    /// use multiboot2::TagTypeId;
+    /// use multiboot2::{Tag, TagTypeId};
     ///
     /// #[repr(C, align(8))]
     ///     struct CustomTag {
@@ -410,9 +410,9 @@ impl BootInformation {
     ///
     /// let tag = mbi
     ///     .get_tag(0x1337)
-    ///     .unwrap()
-    ///     // type definition from end user; must be `Sized`!
-    ///     .cast_tag::<CustomTag>();
+    ///     .unwrap();
+    /// // type definition from end user; must be `Sized`!
+    /// let tag = unsafe { &*(tag as *const Tag as *const CustomTag) };
     /// let name = &tag.name as *const u8 as *const c_char;
     /// let str = unsafe { CStr::from_ptr(name).to_str().unwrap() };
     /// assert_eq!(str, "name");
@@ -422,14 +422,9 @@ impl BootInformation {
         self.tags().find(|tag| tag.typ == typ)
     }
 
-    fn get_tag_mut<Tag: ?Sized, TagType: Into<TagTypeId>>(
-        &mut self,
-        typ: TagType,
-    ) -> Option<&mut Tag> {
+    fn get_tag_mut(&mut self, typ: impl Into<TagTypeId>) -> Option<&mut Tag> {
         let typ = typ.into();
-        self.tags_mut()
-            .find(|tag| tag.typ == typ)
-            .map(|tag| tag.cast_tag_mut::<Tag>())
+        self.tags_mut().find(|tag| tag.typ == typ)
     }
 
     fn tags(&self) -> TagIter {
@@ -1587,7 +1582,8 @@ mod tests {
             name: u8,
         }
 
-        let tag = bi.get_tag(CUSTOM_TAG_ID).unwrap().cast_tag::<CustomTag>();
+        let tag = bi.get_tag(CUSTOM_TAG_ID).unwrap();
+        let tag = unsafe { &*(tag as *const Tag as *const CustomTag) };
 
         // strlen without null byte
         let strlen = tag.size as usize - command_line::METADATA_SIZE;
